@@ -125,7 +125,7 @@ Handle Duplicate(HANDLE source, DWORD access) {
         throw std::system_error(GetLastError(), std::system_category(), "LoadExec: creating the converted executable");
     Handle child(process.hProcess, CloseHandle), thread(process.hThread, CloseHandle);
     try {
-        LibcRunShutdown_nid_postfix();
+        LibcStartExit_nid_postfix();
         std::fflush(nullptr);
         if (ResumeThread(thread.get()) == static_cast<DWORD>(-1))
             throw std::system_error(GetLastError(), std::system_category(), "LoadExec: starting the converted executable");
@@ -152,7 +152,7 @@ Handle Duplicate(HANDLE source, DWORD access) {
     std::vector<char*> pointers;
     for (const auto& argument : arguments) pointers.push_back(const_cast<char*>(argument.c_str()));
     pointers.push_back(nullptr);
-    LibcRunShutdown_nid_postfix();
+    LibcStartExit_nid_postfix();
     std::fflush(nullptr);
     if (const int host = HostStandardError_nid_no_patch(); host >= 0 && dup2(host, 2) != 2)
         throw std::system_error(errno, std::generic_category(), "LoadExec: giving the host standard error back to descriptor 2");
