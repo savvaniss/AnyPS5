@@ -190,8 +190,7 @@ PeDirectory WindowsTlsBuilder::Build(const std::vector<std::uint8_t>& source, co
                 if (!loadValue && !storeImmediate && !aluRead) {
                     static const bool experiment = std::getenv("APS5_EXPERIMENT_GAP_RESYNC") != nullptr;
                     if (experiment && info.SegmentPrefix == 0x65) {
-                        std::fprintf(stderr, "[gap-tls-skip] gs-prefixed instruction at file 0x%llx (va 0x%llx), %u bytes
-", static_cast<unsigned long long>(header.Offset + offset), static_cast<unsigned long long>(header.MappedAddress + offset), static_cast<unsigned>(info.Length));
+                        std::fprintf(stderr, "[gap-tls-skip] gs-prefixed instruction at file 0x%llx (va 0x%llx), %u bytes\n", static_cast<unsigned long long>(header.Offset + offset), static_cast<unsigned long long>(header.MappedAddress + offset), static_cast<unsigned>(info.Length));
                         continue;
                     }
                     std::ostringstream message;
