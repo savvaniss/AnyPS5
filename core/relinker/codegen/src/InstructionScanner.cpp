@@ -2,6 +2,8 @@
 #include <codegen/CodegenException.hpp>
 #include <codegen/x86/X64InstructionDecoder.hpp>
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <limits>
 #include <string>
@@ -38,7 +40,14 @@ void ScanCodeSection(const std::vector<std::uint8_t>& codeSection, const Domain:
             length = decoder.Decode(cursor, available);
         } catch (const CodegenException& e) {
             if (std::all_of(cursor, cursor + available, [](const std::uint8_t b) { return b == 0; })) break;
-            throw CodegenException(std::string("Cannot decode instruction: ") + e.what(), codeSectionOffset + i);
+            static const bool resync = std::getenv("APS5_EXPERIMENT_GAP_RESYNC") != nullptr;
+            if (!resync) throw CodegenException(std::string("Cannot decode instruction: ") + e.what(), codeSectionOffset + i);
+            const auto address = codeSectionOffset + i;
+            const auto next = (address + 16u) & ~Domain::FileByteOffset{15};
+            std::fprintf(stderr, "[gap-resync] %s at 0x%llx, resuming at 0x%llx
+", e.what(), static_cast<unsigned long long>(address), static_cast<unsigned long long>(next));
+            i += static_cast<std::size_t>(next - address);
+            continue;
         }
 
         const InstructionMatch match{codeSectionOffset + i, length};
