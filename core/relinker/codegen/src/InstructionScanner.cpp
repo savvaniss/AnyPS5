@@ -44,8 +44,7 @@ void ScanCodeSection(const std::vector<std::uint8_t>& codeSection, const Domain:
             if (!resync) throw CodegenException(std::string("Cannot decode instruction: ") + e.what(), codeSectionOffset + i);
             const auto address = codeSectionOffset + i;
             const auto next = (address + 16u) & ~Domain::FileByteOffset{15};
-            std::fprintf(stderr, "[gap-resync] %s at 0x%llx, resuming at 0x%llx
-", e.what(), static_cast<unsigned long long>(address), static_cast<unsigned long long>(next));
+            std::fprintf(stderr, "[gap-resync] %s at 0x%llx, resuming at 0x%llx\n", e.what(), static_cast<unsigned long long>(address), static_cast<unsigned long long>(next));
             i += static_cast<std::size_t>(next - address);
             continue;
         }
