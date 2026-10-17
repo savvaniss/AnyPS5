@@ -69,7 +69,7 @@ int DeleteEvent(KernelEqueue eq, std::uintptr_t ident, const char* caller) {
 
 }
 
-void AgcDriverDeliverEopInterrupt(std::uint32_t queue) {
+bool AgcDriverDeliverEopInterrupt(std::uint32_t queue) {
     static const bool logEop = std::getenv("APS5_LOG_EOP") != nullptr;
     if (logEop) std::fprintf(stderr, "[eop] %.3f deliver queue %u\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(), queue);
     std::vector<Registration> registrations;
@@ -77,11 +77,14 @@ void AgcDriverDeliverEopInterrupt(std::uint32_t queue) {
         std::lock_guard lock(g_mutex);
         registrations = g_registrations;
     }
+    bool delivered = false;
     for (const auto& registration : registrations) {
         if (registration.queue == queue) {
             EqueueTriggerEvent_nid_postfix(registration.eq, registration.ident, EvfiltGraphicsCore, nullptr);
+            delivered = true;
         }
     }
+    return delivered;
 }
 
 extern "C" {
