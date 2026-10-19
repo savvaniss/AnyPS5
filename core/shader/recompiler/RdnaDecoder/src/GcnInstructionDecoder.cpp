@@ -1,5 +1,6 @@
 #include "RdnaDecoder/RdnaInstructionDecoder.hpp"
 #include "GcnOpcodeTables.hpp"
+#include "RdnaDecoder/RdnaDescriptorFormat.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -279,6 +280,24 @@ Encoded encodeMubuf(std::span<const std::uint32_t> code, std::uint32_t index, st
     return out;
 }
 
+Encoded encodeMtbuf(std::span<const std::uint32_t> code, std::uint32_t index, std::uint32_t programCounter) {
+    if (index + 1 >= code.size()) throw std::out_of_range("truncated GCN MTBUF instruction");
+    const auto word0 = code[index];
+    const auto opcode = (word0 >> 16u) & 7u;
+    if (((word0 >> 15u) & 1u) != 0) unsupported("MTBUF addr64", opcode, programCounter);
+    const auto dataFormat = (word0 >> 19u) & 0xfu;
+    const auto numberFormat = (word0 >> 23u) & 7u;
+    const auto format = GcnBufferFormats()[(dataFormat << 3u) | numberFormat];
+    if (format == 0) {
+        throw UnsupportedInstructionError("GCN MTBUF opcode " + std::to_string(opcode) + " at program counter " + std::to_string(programCounter) + " uses data format " + std::to_string(dataFormat) + " with number format " + std::to_string(numberFormat) + ", which has no RDNA buffer format");
+    }
+    Encoded out;
+    out.words[0] = replaceBits(word0, 19, 7, format);
+    out.words[1] = replaceBits(code[index + 1], 21, 1, 0);
+    out.rdnaWords = out.gcnWords = 2;
+    return out;
+}
+
 Encoded encodeMimg(std::span<const std::uint32_t> code, std::uint32_t index, std::uint32_t programCounter) {
     if (index + 1 >= code.size()) throw std::out_of_range("truncated GCN MIMG instruction");
     const auto word0 = code[index];
@@ -319,7 +338,7 @@ Encoded encodeGcn(std::span<const std::uint32_t> code, std::uint32_t index, std:
         case 0x38u: return encodeMubuf(code, index, programCounter);
         case 0x3eu: return encodePassThrough(code, index, 2, "EXP");
         case 0x37u: unsupported("FLAT", (word >> 18u) & 0x7fu, programCounter);
-        case 0x3au: unsupported("MTBUF", (word >> 16u) & 7u, programCounter);
+        case 0x3au: return encodeMtbuf(code, index, programCounter);
         case 0x3cu: return encodeMimg(code, index, programCounter);
         default: break;
     }
