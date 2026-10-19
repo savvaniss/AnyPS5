@@ -251,8 +251,7 @@ int APS5_VABI sceNpTrophyGetTrophyIcon(int contextId, int handle, int trophyId, 
 }
 
 int APS5_VABI sceNpTrophyGetGameInfo() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+    return NP_TROPHY_ERROR_TITLE_CONF_NOT_INSTALLED;
 }
 
 int APS5_VABI sceNpTrophyGetGroupInfo() {
