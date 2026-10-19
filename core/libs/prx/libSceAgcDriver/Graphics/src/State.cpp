@@ -1446,7 +1446,7 @@ std::uint32_t GuestFormatFor(VkFormat format, std::uint32_t elementBytes) {
 }
 
 GuestTextureResource SurfaceForTarget(const ColorTarget& color) {
-    Require(color.tileMode != ColorTileMode::Linear, "linear color targets are not resident");
+    Require(!ColorTileModeIsLinear(color.tileMode), "linear color targets are not resident");
     const bool chain = color.mipCount > 1;
     GuestTextureResource surface{};
     surface.baseAddress = chain ? color.surfaceAddress : color.address;
@@ -1493,7 +1493,7 @@ ColorTarget DecodeGcnColorBuffer(const Registers& cx, std::uint32_t slot) {
     color.surfaceExtent = color.extent;
     color.elementBytes = decoded.elementBytes;
     switch (attrib & 0x1fu) {
-        case 8u: color.tileMode = ColorTileMode::Linear; break;
+        case 8u: color.tileMode = ColorTileMode::GcnLinear; break;
         case 5u: case 13u: color.tileMode = ColorTileMode::GcnThin1D; break;
         case 9u: color.tileMode = ColorTileMode::GcnDisplay1D; break;
         case 10u: color.tileMode = ColorTileMode::GcnDisplay2D; break;
