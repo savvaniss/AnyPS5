@@ -15,4 +15,19 @@ int APS5_VABI sceNpProfileDialogUpdateStatus(void) {
     return 0;
 }
 
+int APS5_VABI sceNpProfileDialogGetResult(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpProfileDialogInitialize(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpProfileDialogOpen(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }

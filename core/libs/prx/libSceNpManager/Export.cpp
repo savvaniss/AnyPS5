@@ -355,4 +355,29 @@ int APS5_VABI sceNpGetParentalControlInfo(void) {
     return 0;
 }
 
+int APS5_VABI sceNpLookupCreateAsyncRequest(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpLookupPollAsync(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpLookupAbortRequest(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpNotifyPlusFeature(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpGetUserIdByOnlineId(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }

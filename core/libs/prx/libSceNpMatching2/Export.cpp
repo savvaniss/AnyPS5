@@ -158,4 +158,9 @@ int APS5_VABI sceNpMatching2SignalingGetConnectionStatus(void) {
     return 0;
 }
 
+int APS5_VABI sceNpMatching2GrantRoomOwner(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }
