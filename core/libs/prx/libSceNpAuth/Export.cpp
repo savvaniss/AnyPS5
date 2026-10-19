@@ -148,9 +148,4 @@ int APS5_VABI sceNpAuthWaitAsync(int req_id, int* result) {
 
 extern "C" {
 
-int APS5_VABI sceNpAuthGetAuthorizationCode() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 }
