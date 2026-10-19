@@ -687,6 +687,14 @@ std::string verify(std::uintptr_t address, std::size_t bytes, bool writable) {
 void CheckRange(const void* pointer, std::size_t bytes, std::size_t alignment, bool writable) {
     require(alignment != 0, "zero guest memory alignment");
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
+    if ((address == 0 || address % alignment != 0) && std::getenv("APS5_TRACE_NULL") != nullptr) {
+        std::array<unsigned long long, 12> frames{};
+        const auto count = CaptureCallerOffsets(frames, 0);
+        std::fprintf(stderr, "[null-range] address 0x%llx bytes 0x%zx alignment %zu, driver frames:", static_cast<unsigned long long>(address), bytes, alignment);
+        for (std::size_t i = 0; i < count; ++i) std::fprintf(stderr, " +0x%llx", frames[i]);
+        std::fprintf(stderr, "\n");
+        std::fflush(stderr);
+    }
     require(address != 0 && address % alignment == 0, "null or misaligned address");
     require(bytes <= std::numeric_limits<std::uintptr_t>::max() - address, "address range overflow");
     const auto reason = verify(address, bytes, writable);
