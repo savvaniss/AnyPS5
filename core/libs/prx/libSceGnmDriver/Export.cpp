@@ -564,9 +564,8 @@ int APS5_VABI sceGnmUnmapComputeQueue() {
     return 0;
 }
 
-int APS5_VABI sceGnmDrawInitDefaultHardwareState200(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uint32_t APS5_VABI sceGnmDrawInitDefaultHardwareState200(std::uint32_t* cmd, std::uint32_t size) {
+    return sceGnmDrawInitDefaultHardwareState175(cmd, size);
 }
 
 int APS5_VABI sceGnmMapComputeQueueWithPriority(void) {
