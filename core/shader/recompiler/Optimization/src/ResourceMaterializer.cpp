@@ -201,10 +201,15 @@ ImageDecode inspectImageDescriptor(const DescriptorValue& descriptor, const Imag
         return rejectImage(invalidImageReason(descriptor), "image descriptor is invalid");
     }
     decoded.dimension = descriptorDimension(descriptor, base.dimension);
-    if (GcnGuestShaders() && imageCoordinates(decoded.dimension) != imageCoordinates(base.dimension)) {
+    const bool gcnFirstFace = GcnGuestShaders() && imageCoordinates(decoded.dimension) != imageCoordinates(base.dimension) && descriptorIsCube(descriptor) && base.dimension == RdnaImageDimension::Dim2D;
+    if (GcnGuestShaders() && imageCoordinates(decoded.dimension) != imageCoordinates(base.dimension) && !gcnFirstFace) {
         return rejectImage(PoisonReason::Dimension, "GCN image instruction on a descriptor of type " + std::to_string(static_cast<std::uint32_t>(rawImageType(descriptor))) + " needs a different address count than its inferred dimension");
     }
-    decoded.cube = descriptorIsCube(descriptor);
+    if (gcnFirstFace) {
+        decoded.dimension = RdnaImageDimension::Dim2D;
+        decoded.cube = false;
+    }
+    if (!gcnFirstFace) decoded.cube = descriptorIsCube(descriptor);
     const auto format = rawImageFormat(descriptor);
     if (base.atomic64 && format != IrBufferFormat::Format32_32UInt && format != IrBufferFormat::Format32_32SInt && format != IrBufferFormat::Format32_32Float) {
         return rejectImage(PoisonReason::InvalidFormat, "64-bit atomic image descriptor uses an unsupported format " + std::to_string(static_cast<std::uint32_t>(format)));
