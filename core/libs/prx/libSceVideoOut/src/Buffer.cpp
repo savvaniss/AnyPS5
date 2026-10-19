@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
@@ -26,6 +27,7 @@ AgcDriver::DisplayBuffer DescribeVideoOutBuffer(const VideoOutBuffer& buffer, co
     if (compressed && (attribute.dcc_control & ~VIDEO_OUT_DCC_CONTROL_BLOCK_LAYOUT) != 0) throw std::runtime_error("VideoOut: unsupported DCC control " + hex(attribute.dcc_control) + " (only the block size and independence fields " + hex(VIDEO_OUT_DCC_CONTROL_BLOCK_LAYOUT) + " are known)");
     AgcDriver::DisplayBuffer result{buffer.dataAddress, attribute.pixel_format, attribute.width, attribute.height, attribute.tiling_mode, attribute.pitch_in_pixel, compressed ? buffer.metadataAddress : 0, compressed ? attribute.dcc_cb_register_clear_color : 0};
     if (group.ps4) result.alignment = 4096;
+    if (std::getenv("APS5_TRACE_NULL") != nullptr) std::fprintf(stderr, "[videoout-trace] describe 0x%llx %ux%u tiling %u ps4 %d alignment %u\n", static_cast<unsigned long long>(buffer.dataAddress), attribute.width, attribute.height, static_cast<unsigned>(attribute.tiling_mode), group.ps4 ? 1 : 0, result.alignment);
     if (group.ps4 && attribute.tiling_mode == 0) {
         result.tilingMode = AgcDriver::DisplayTilingGcn;
         result.pitchInPixel = group.ps4Pitch;
@@ -132,6 +134,7 @@ void APS5_VABI sceVideoOutAddBufferAttributeOption(VideoOutBufferAttribute2* att
 }
 
 int APS5_VABI sceVideoOutRegisterBuffers2(int handle, int setIndex, int bufferIndexStart, const VideoOutBuffers* buffers, int bufferNum, const VideoOutBufferAttribute2* attribute, int category, void* option) try {
+    if (std::getenv("APS5_TRACE_NULL") != nullptr) std::fprintf(stderr, "[videoout-trace] %s\n", __func__);
     auto cfg = VideoOutDriver::Get().GetConfig(handle);
     if (cfg == nullptr) {
         throw std::runtime_error(std::string(__func__) + ": VIDEO_OUT_ERROR_INVALID_HANDLE");
@@ -177,6 +180,7 @@ void APS5_VABI sceVideoOutSetBufferAttribute(VideoOutBufferAttribute* attribute,
 }
 
 int APS5_VABI sceVideoOutRegisterBuffers(int handle, int bufferIndexStart, void* const* addresses, int bufferNum, const VideoOutBufferAttribute* attribute) try {
+    if (std::getenv("APS5_TRACE_NULL") != nullptr) std::fprintf(stderr, "[videoout-trace] %s\n", __func__);
     auto cfg = VideoOutDriver::Get().GetConfig(handle);
     if (cfg == nullptr) {
         throw std::runtime_error(std::string(__func__) + ": VIDEO_OUT_ERROR_INVALID_HANDLE");
