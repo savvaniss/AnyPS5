@@ -92,7 +92,7 @@ GuestTextureResource DecodeTextureResource(std::span<const std::uint32_t> descri
     if (gcn) local[6] = local[7] = 0u;
     const std::span<const std::uint32_t> words(local);
 
-    const auto base40 = (static_cast<std::uint64_t>(words[0]) | (static_cast<std::uint64_t>(words[1]) << 32u)) & 0xffffffffffull;
+    const auto base40 = (static_cast<std::uint64_t>(words[0]) | (static_cast<std::uint64_t>(words[1]) << 32u)) & (gcn ? 0x3fffffffffull : 0xffffffffffull);
     auto baseAddress = base40 << 8u;
     Require(baseAddress != 0, "guest texture descriptor has a null base address");
 
