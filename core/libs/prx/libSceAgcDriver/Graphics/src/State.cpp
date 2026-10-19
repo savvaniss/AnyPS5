@@ -1513,7 +1513,6 @@ ColorTarget DecodeGcnColorBuffer(const Registers& cx, std::uint32_t slot) {
         const auto clear = find(cx, 0x323 + word + stride);
         color.clearWords[word] = clear == cx.end() ? 0u : clear->second;
     }
-    Require(((info >> 13u) & 1u) == 0, "PS4 color target fast clear (CMASK) is not implemented");
     GuestMemory::CheckRange(reinterpret_cast<const void*>(color.address), color.bytes, layout.Alignment(), true);
     return color;
 }
