@@ -105,7 +105,7 @@ IrValue* TranslationContext::makeImageAddress(const RdnaInstruction& inst, const
     const std::uint32_t nsaComponents = std::min(inst.imageNsaDwordCount * 4u, MaxRdnaImageNsaAddressComponents);
     const RdnaOperand plainBase = plainOperand(base);
     if (GcnGuestShaders() && nsaComponents == 0u && plainBase.kind == RdnaOperandKind::VectorRegister) {
-        count = std::min({count + 2u, static_cast<std::uint32_t>(components.size()), 256u - plainBase.reg});
+        count = std::min({count + 3u, static_cast<std::uint32_t>(components.size()), 256u - plainBase.reg});
     }
     for (std::uint32_t index = 0; index < count; ++index) {
         if (index != 0u && index - 1u < nsaComponents) {
