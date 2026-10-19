@@ -688,10 +688,20 @@ void CheckRange(const void* pointer, std::size_t bytes, std::size_t alignment, b
     require(alignment != 0, "zero guest memory alignment");
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
     if ((address == 0 || address % alignment != 0) && std::getenv("APS5_TRACE_NULL") != nullptr) {
-        std::array<unsigned long long, 12> frames{};
-        const auto count = CaptureCallerOffsets(frames, 0);
-        std::fprintf(stderr, "[null-range] address 0x%llx bytes 0x%zx alignment %zu, driver frames:", static_cast<unsigned long long>(address), bytes, alignment);
-        for (std::size_t i = 0; i < count; ++i) std::fprintf(stderr, " +0x%llx", frames[i]);
+        std::fprintf(stderr, "[null-range] address 0x%llx bytes 0x%zx alignment %zu, frames:", static_cast<unsigned long long>(address), bytes, alignment);
+#ifdef _WIN32
+        void* raw[24];
+        const auto captured = RtlCaptureStackBackTrace(0, 24, raw, nullptr);
+        for (USHORT i = 0; i < captured; ++i) {
+            HMODULE module = nullptr;
+            char name[MAX_PATH] = "?";
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, static_cast<LPCSTR>(raw[i]), &module) && module != nullptr) {
+                GetModuleFileNameA(module, name, sizeof(name));
+            }
+            const char* base = std::strrchr(name, '\\');
+            std::fprintf(stderr, " %s+0x%llx", base ? base + 1 : name, static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(raw[i]) - reinterpret_cast<std::uintptr_t>(module)));
+        }
+#endif
         std::fprintf(stderr, "\n");
         std::fflush(stderr);
     }
