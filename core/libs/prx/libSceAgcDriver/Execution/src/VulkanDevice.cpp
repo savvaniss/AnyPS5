@@ -3062,6 +3062,10 @@ bool VulkanDevice::PresentDisplayBuffer(const DisplayBuffer& buffer) {
             ++residentPresents;
         }
     }
+    if (buffer.tilingMode == DisplayTilingGcn && resident == nullptr) {
+        const auto pixels = passthrough ? ReadDisplayBufferTexels(buffer) : ReadDisplayBuffer(buffer);
+        return present(buffer.width, buffer.height, true, pixels, nullptr, nullptr, VK_FILTER_LINEAR, false, false, nullptr, 0, passthrough);
+    }
     const auto cleared = buffer.dccAddress != 0 && resident == nullptr ? CompressedClearPixel(buffer, bytes) : std::nullopt;
     bool dumpFrame = false;
     if (frameDumpOutput.Enabled_nid_no_patch() && dumps.dumped < dumps.limit && ++dumps.presents % static_cast<std::uint64_t>(dumps.every) == 0) {
