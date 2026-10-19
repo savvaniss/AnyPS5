@@ -576,6 +576,19 @@ bool TranslationContext::floatUnary(const RdnaInstruction& inst, IrOpcode opcode
     return true;
 }
 
+bool TranslationContext::floatUnaryClampInfinity(const RdnaInstruction& inst, IrOpcode opcode) {
+    const IrU32 bits = flushF32Denormal(readU32(sourceAt(inst, 0u)));
+    const IrF32 argument(ir.BitCastF32(bits.Value()));
+    const auto [result, invalid] = unaryFloatSpecials(opcode, argument, IrF32(ir.Emit(opcode, IrType::F32, {&argument.Value()})));
+    const IrU1 nan(ir.UGreaterThan(ir.BitwiseAnd(bits.Value(), ir.Constant(0x7fffffffu)), ir.Constant(0x7f800000u)));
+    const IrU32 special(ir.Select(nan.Value(), quietNan32(bits).Value(), ir.Constant(0xffc00000u)));
+    const IrU32 value(ir.BitCastU32(ir.Select(ir.LogicalOr(nan.Value(), invalid.Value()), ir.BitCastF32(special.Value()), result.Value())));
+    const IrU1 infinite(ir.IEqual(ir.BitwiseAnd(value.Value(), ir.Constant(0x7fffffffu)), ir.Constant(0x7f800000u)));
+    const IrU32 clamped(ir.BitwiseOr(ir.BitwiseAnd(value.Value(), ir.Constant(0x80000000u)), ir.Constant(0x7f7fffffu)));
+    writeOperand(inst.destination, &ir.BitCastF32(ir.Select(infinite.Value(), clamped.Value(), value.Value())));
+    return true;
+}
+
 bool TranslationContext::floatBinary(const RdnaInstruction& inst, IrOpcode opcode, bool reverse) {
     std::array<IrValue*, 2> args{};
     for (std::uint32_t index = 0u; index < args.size(); ++index) {

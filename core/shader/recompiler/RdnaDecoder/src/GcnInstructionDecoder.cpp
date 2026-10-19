@@ -360,6 +360,10 @@ RdnaInstruction DecodeGcnInstruction(std::uint32_t programCounter, std::span<con
     const auto encoded = encodeGcn(code, wordIndex, programCounter);
     auto instruction = DecodeRdnaEncodedInstruction(programCounter, std::span<const std::uint32_t>(encoded.words.data(), encoded.rdnaWords), 0);
     instruction.wordCount = encoded.gcnWords;
+    const auto word = code[wordIndex];
+    const bool vop1RsqClamp = (word >> 25u) == 0x3fu && ((word >> 9u) & 0xffu) == 0x2cu;
+    const bool vop3RsqClamp = (word >> 26u) == 0x34u && ((word >> 17u) & 0x1ffu) == 0x1acu;
+    if (vop1RsqClamp || vop3RsqClamp) instruction.op = RdnaOpcode::VRsqClampF32;
     return instruction;
 }
 
