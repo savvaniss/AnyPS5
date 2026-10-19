@@ -3,6 +3,8 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 
+constexpr int CameraErrorParam = static_cast<int>(0x802E0000u);
+
 extern "C" {
 
 int APS5_VABI sceCameraStop(void) {
@@ -15,8 +17,8 @@ int APS5_VABI sceCameraClose(void) {
     return 0;
 }
 
-int APS5_VABI sceCameraIsAttached(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceCameraIsAttached(std::int32_t index) {
+    if (index != 0) return CameraErrorParam;
     return 0;
 }
 

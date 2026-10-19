@@ -94,6 +94,7 @@ struct ImageResource {
     bool flatLineCompatible = true;
     bool flatVolumeLineCompatible = true;
     bool foldTexelOffsetsOnly = false;
+    bool gathered = false;
     std::uint32_t byElements = 0;
     std::uint32_t byComponents = 0;
     IrBufferFormat packedFormat = IrBufferFormat::Invalid;

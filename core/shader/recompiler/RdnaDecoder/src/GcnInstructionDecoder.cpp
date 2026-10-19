@@ -19,6 +19,7 @@ std::atomic<bool> g_gcnGuestShaders{false};
 constexpr std::uint32_t LiteralSource = 0xffu;
 constexpr std::uint32_t VccSdst = 106u;
 constexpr std::uint32_t NullSoffset = 0x7du;
+constexpr std::uint32_t MaxSmemByteOffset = 0xfffffu;
 constexpr std::uint32_t LinkedCallSopk = 0x16u;
 constexpr std::uint32_t CodeEndSopp = 0x1fu;
 
@@ -107,12 +108,18 @@ Encoded encodeSmrd(std::span<const std::uint32_t> code, std::uint32_t index, std
     const auto sbase = (word >> 9u) & 0x3fu;
     const bool immediate = ((word >> 8u) & 1u) != 0;
     const auto offset = word & 0xffu;
-    if (!immediate && offset == LiteralSource) unsupported("SMRD literal-offset", opcode, programCounter);
+    const bool literalOffset = !immediate && offset == LiteralSource;
     Encoded out;
-    out.gcnWords = 1;
+    out.gcnWords = literalOffset ? 2u : 1u;
     out.rdnaWords = 2;
     out.words[0] = (0x3du << 26u) | (*mapped << 18u) | (sdst << 6u) | sbase;
-    out.words[1] = immediate ? (NullSoffset << 25u) | (offset * 4u) : (offset << 25u);
+    if (literalOffset) {
+        const auto dwords = literalAt(code, index + 1, programCounter);
+        if (dwords > MaxSmemByteOffset / 4u) unsupported("SMRD literal offset past the RDNA offset range,", opcode, programCounter);
+        out.words[1] = (NullSoffset << 25u) | (dwords * 4u);
+    } else {
+        out.words[1] = immediate ? (NullSoffset << 25u) | (offset * 4u) : (offset << 25u);
+    }
     return out;
 }
 
