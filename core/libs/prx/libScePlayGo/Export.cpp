@@ -40,7 +40,7 @@ static bool ReadPackageChunks(ChunkTable& table) {
     char header[CountOffset + sizeof(uint16_t)]{};
     if (!file) return false;
     const auto unreadable = [] { return std::runtime_error("scePlayGo: sce_sys/playgo-chunk.dat is not a chunk table this library reads (expected a plgx header with a nonzero chunk count)"); };
-    if (!file.read(header, sizeof(header)) || std::memcmp(header, "plgx", 4) != 0) throw unreadable();
+    if (!file.read(header, sizeof(header)) || (std::memcmp(header, "plgx", 4) != 0 && std::memcmp(header, "plgo", 4) != 0)) throw unreadable();
     uint16_t count = 0;
     std::memcpy(&count, header + CountOffset, sizeof(count));
     if (count == 0) throw unreadable();
