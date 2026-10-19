@@ -464,7 +464,7 @@ void Validate(std::span<const std::uint32_t> packet, std::uint32_t queue) {
         case 0x49: {
             size(8);
             const auto dataSelect = packet[2] >> 29u;
-            require(dataSelect <= 3, "GDS RELEASE_MEM data is not implemented");
+            require(dataSelect <= 4, "GDS RELEASE_MEM data is not implemented");
             require(dataSelect == 0 || address(packet[3], packet[4]) == 0 || (packet[3] & (dataSelect == 1 ? 3u : 7u)) == 0, "misaligned RELEASE_MEM destination");
             break;
         }
@@ -601,10 +601,10 @@ std::optional<LabelWrite> DecodeLabelWrite(std::span<const std::uint32_t> packet
     if (opcode == 0x49 && packet.size() >= 7) {
         const auto dataSelect = packet[2] >> 29u;
         const auto destination = address(packet[3], packet[4]);
-        if (dataSelect == 0 || dataSelect > 3) return std::nullopt;
+        if (dataSelect == 0 || dataSelect > 4) return std::nullopt;
         if (destination == 0) return std::nullopt;
         std::uint64_t value = address(packet[5], packet[6]);
-        if (dataSelect == 3) value = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 10);
+        if (dataSelect >= 3) value = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 10);
         LabelWrite label{destination, {}};
         label.inlineSize = dataSelect == 1 ? 4 : 8;
         std::memcpy(label.inlineBytes.data(), &value, label.inlineSize);
@@ -1057,7 +1057,7 @@ void Execute(std::span<const std::uint32_t> packet, QueueState& queue) {
             const auto destination = address(packet[3], packet[4]);
             if (dataSelect == 0 || destination == 0) return;
             std::uint64_t value = address(packet[5], packet[6]);
-            if (dataSelect == 3) {
+            if (dataSelect >= 3) {
                 value = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() / 10);
             }
             GuestMemory::Write(destination, std::as_bytes(std::span(&value, 1)).first(dataSelect == 1 ? 4 : 8), dataSelect == 1 ? 4 : 8);
