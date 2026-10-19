@@ -1,5 +1,30 @@
+#include <cstddef>
+#include <cstdint>
+#include <mutex>
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
+
+namespace {
+
+constexpr int NpMatching2ErrorAlreadyInitialized = static_cast<int>(0x80550C02u);
+constexpr int NpMatching2ErrorNotInitialized = static_cast<int>(0x80550C03u);
+constexpr int NpMatching2ErrorInvalidArgument = static_cast<int>(0x80550C0Au);
+
+struct NpMatching2InitializeParameter {
+    std::uint64_t poolSize;
+    std::uint64_t cpuAffinityMask;
+    std::int32_t threadPriority;
+    std::uint8_t padding[4];
+    std::uint64_t threadStackSize;
+    std::uint64_t size;
+    std::uint64_t sslPoolSize;
+};
+static_assert(offsetof(NpMatching2InitializeParameter, size) == 0x20);
+
+std::mutex g_matching2Mutex;
+bool g_matching2Initialized = false;
+
+}
 
 extern "C" {
 
@@ -58,8 +83,11 @@ int APS5_VABI sceNpMatching2GetWorldInfoList() {
     return 0;
 }
 
-int APS5_VABI sceNpMatching2Initialize() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceNpMatching2Initialize(const NpMatching2InitializeParameter* param) {
+    std::lock_guard lock(g_matching2Mutex);
+    if (g_matching2Initialized) return NpMatching2ErrorAlreadyInitialized;
+    if (param == nullptr || (param->size != offsetof(NpMatching2InitializeParameter, sslPoolSize) && param->size != sizeof(NpMatching2InitializeParameter))) return NpMatching2ErrorInvalidArgument;
+    g_matching2Initialized = true;
     return 0;
 }
 
@@ -143,8 +171,10 @@ int APS5_VABI sceNpMatching2SignalingGetConnectionInfo() {
     return 0;
 }
 
-int APS5_VABI sceNpMatching2Terminate() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceNpMatching2Terminate(void) {
+    std::lock_guard lock(g_matching2Mutex);
+    if (!g_matching2Initialized) return NpMatching2ErrorNotInitialized;
+    g_matching2Initialized = false;
     return 0;
 }
 

@@ -330,29 +330,31 @@ int APS5_VABI sceNpSnsFacebookGetAccessToken() {
     return 0;
 }
 
-int APS5_VABI sceNpCheckPlus(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceNpGetAccountCountry(const void* online_id, void* country_code) {
-    if (!online_id || !country_code) return SCE_NP_ERROR_INVALID_ARGUMENT;
+int APS5_VABI sceNpCheckPlus(int req_id, const void* param, void* result) {
+    if (req_id == 0 || !param || !result) return SCE_NP_ERROR_INVALID_ARGUMENT;
     return SCE_NP_ERROR_SIGNED_OUT;
 }
 
-int APS5_VABI sceNpGetAccountDateOfBirth(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpGetAccountCountry(const NpOnlineId* online_id, void* country_code) {
+    if (!online_id || !country_code) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_USER_NOT_FOUND;
 }
 
-int APS5_VABI sceNpGetAccountLanguage(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpGetAccountDateOfBirth(const NpOnlineId* online_id, void* date_of_birth) {
+    if (!online_id || !date_of_birth) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_USER_NOT_FOUND;
 }
 
-int APS5_VABI sceNpGetParentalControlInfo(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpGetAccountLanguage(int req_id, const NpOnlineId* online_id, void* language) {
+    (void)req_id;
+    if (!online_id || !language) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_USER_NOT_FOUND;
+}
+
+int APS5_VABI sceNpGetParentalControlInfo(int req_id, const NpOnlineId* online_id, int8_t* age, void* info) {
+    (void)req_id;
+    if (!online_id || !age || !info) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_USER_NOT_FOUND;
 }
 
 int APS5_VABI sceNpLookupCreateAsyncRequest(void) {
@@ -375,9 +377,9 @@ int APS5_VABI sceNpNotifyPlusFeature(void) {
     return 0;
 }
 
-int APS5_VABI sceNpGetUserIdByOnlineId(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpGetUserIdByOnlineId(const NpOnlineId* online_id, int* user_id) {
+    if (!online_id || !user_id) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
 }
 
 int APS5_VABI sceNpCmpOnlineId(void) {
