@@ -335,9 +335,9 @@ int APS5_VABI sceNpCheckPlus(void) {
     return 0;
 }
 
-int APS5_VABI sceNpGetAccountCountry(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceNpGetAccountCountry(const void* online_id, void* country_code) {
+    if (!online_id || !country_code) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    return SCE_NP_ERROR_SIGNED_OUT;
 }
 
 int APS5_VABI sceNpGetAccountDateOfBirth(void) {
