@@ -330,4 +330,29 @@ int APS5_VABI sceNpSnsFacebookGetAccessToken() {
     return 0;
 }
 
+int APS5_VABI sceNpCheckPlus(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpGetAccountCountry(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpGetAccountDateOfBirth(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpGetAccountLanguage(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpGetParentalControlInfo(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }

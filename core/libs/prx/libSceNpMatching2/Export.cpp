@@ -148,4 +148,14 @@ int APS5_VABI sceNpMatching2Terminate() {
     return 0;
 }
 
+int APS5_VABI sceNpMatching2AbortContextStart(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpMatching2SignalingGetConnectionStatus(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }

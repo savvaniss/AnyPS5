@@ -564,4 +564,34 @@ int APS5_VABI sceGnmUnmapComputeQueue() {
     return 0;
 }
 
+int APS5_VABI sceGnmDrawInitDefaultHardwareState200(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceGnmMapComputeQueueWithPriority(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceGnmUpdatePsShader(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceGnmUpdateHsShader(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceGnmUpdateVsShader(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceGnmUpdateGsShader(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }
