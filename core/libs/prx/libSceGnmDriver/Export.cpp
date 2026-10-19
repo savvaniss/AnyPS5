@@ -573,24 +573,20 @@ int APS5_VABI sceGnmMapComputeQueueWithPriority(void) {
     return 0;
 }
 
-int APS5_VABI sceGnmUpdatePsShader(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceGnmUpdatePsShader(std::uint32_t* cmd, std::uint32_t size, const std::uint32_t* regs) {
+    return sceGnmSetPsShader(cmd, size, regs);
 }
 
-int APS5_VABI sceGnmUpdateHsShader(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceGnmUpdateHsShader(std::uint32_t* cmd, std::uint32_t size, const std::uint32_t* regs, std::uint32_t lsHsConfig) {
+    return sceGnmSetHsShader(cmd, size, regs, lsHsConfig);
 }
 
-int APS5_VABI sceGnmUpdateVsShader(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceGnmUpdateVsShader(std::uint32_t* cmd, std::uint32_t size, const std::uint32_t* regs, std::uint32_t modifier) {
+    return sceGnmSetVsShader(cmd, size, regs, modifier);
 }
 
-int APS5_VABI sceGnmUpdateGsShader(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceGnmUpdateGsShader(std::uint32_t* cmd, std::uint32_t size, const std::uint32_t* regs) {
+    return sceGnmSetGsShader(cmd, size, regs);
 }
 
 }
