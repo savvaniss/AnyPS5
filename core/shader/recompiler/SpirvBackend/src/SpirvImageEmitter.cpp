@@ -7,6 +7,7 @@
 #include "SpirvBackend/SpirvMemory/SpirvDescriptors.hpp"
 #include "RdnaDecoder/RdnaDescriptorFormat.hpp"
 #include "RdnaDecoder/RdnaImageOpDecoder.hpp"
+#include "RdnaDecoder/RdnaInstructionDecoder.hpp"
 #include "ImageTableAbi.hpp"
 #include <span>
 #include <initializer_list>
@@ -1750,7 +1751,18 @@ void EmitImageMode(SpirvValueEmitContext& ctx, const IrValue& inst, const ImageR
     if (address == nullptr) {
         ctx.Fail(inst, "has no image address");
     }
-    const ImageEmitAccess access{inst, mem, image, *address};
+    MemoryInfo gcnMemory = mem;
+    if (GcnGuestShaders() && irOpcode != IrOpcode::ImageQueryDimensions && mem.imageDimension != image.dimension) {
+        const auto& from = RdnaImageDimensionInfoFor(mem.imageDimension);
+        const auto& to = RdnaImageDimensionInfoFor(image.dimension);
+        const bool gradients = (mem.imageSampleFlags & RdnaImageSampleFlagDerivative) != 0u;
+        const auto removed = from.coordinateComponents + (gradients ? 2u * from.spatialComponents : 0u);
+        const auto added = to.coordinateComponents + (gradients ? 2u * to.spatialComponents : 0u);
+        if (mem.imageAddressComponents < removed) ctx.Fail(inst, "has fewer GCN image address components than its coordinates");
+        gcnMemory.imageDimension = image.dimension;
+        gcnMemory.imageAddressComponents = mem.imageAddressComponents - removed + added;
+    }
+    const ImageEmitAccess access{inst, gcnMemory, image, *address};
     if (imageInfo.access == ImageAccess::Atomic) {
         EmitAtomicOp(ctx, access);
         return;

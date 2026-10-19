@@ -94,6 +94,18 @@ bool descriptorIsCube(const DescriptorValue& descriptor) {
     return rawImageType(descriptor) == ImageType::Cube;
 }
 
+RdnaImageDimension gcnDescriptorDimension(const DescriptorValue& descriptor) {
+    switch (rawImageType(descriptor)) {
+        case ImageType::Color1D: return RdnaImageDimension::Dim1D;
+        case ImageType::Color1DArray: return RdnaImageDimension::Dim1DArray;
+        case ImageType::Color3D: return RdnaImageDimension::Dim3D;
+        case ImageType::Cube: case ImageType::Color2DArray: return RdnaImageDimension::Dim2DArray;
+        case ImageType::Color2DMsaa: return RdnaImageDimension::Dim2DMsaa;
+        case ImageType::Color2DMsaaArray: return RdnaImageDimension::Dim2DMsaaArray;
+        default: return RdnaImageDimension::Dim2D;
+    }
+}
+
 RdnaImageDimension descriptorDimension(const DescriptorValue& descriptor, RdnaImageDimension requested) {
     const bool wantArray = requested == RdnaImageDimension::Dim1DArray || requested == RdnaImageDimension::Dim2DArray || requested == RdnaImageDimension::Dim2DMsaaArray;
     switch (rawImageType(descriptor)) {
@@ -200,10 +212,7 @@ ImageDecode inspectImageDescriptor(const DescriptorValue& descriptor, const Imag
     if (!validImageDescriptor(descriptor, base.r128)) {
         return rejectImage(invalidImageReason(descriptor), "image descriptor is invalid");
     }
-    decoded.dimension = descriptorDimension(descriptor, base.dimension);
-    if (GcnGuestShaders() && imageCoordinates(decoded.dimension) != imageCoordinates(base.dimension)) {
-        return rejectImage(PoisonReason::Dimension, "GCN image instruction on a descriptor of type " + std::to_string(static_cast<std::uint32_t>(rawImageType(descriptor))) + " needs a different address count than its inferred dimension");
-    }
+    decoded.dimension = GcnGuestShaders() ? gcnDescriptorDimension(descriptor) : descriptorDimension(descriptor, base.dimension);
     decoded.cube = descriptorIsCube(descriptor);
     const auto format = rawImageFormat(descriptor);
     if (base.atomic64 && format != IrBufferFormat::Format32_32UInt && format != IrBufferFormat::Format32_32SInt && format != IrBufferFormat::Format32_32Float) {
