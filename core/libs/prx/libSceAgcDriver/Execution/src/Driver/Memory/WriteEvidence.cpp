@@ -41,6 +41,11 @@ bool Driver::writerKeyedEvidence() {
     return keyed;
 }
 
+bool Driver::storedKnownValues() {
+    static const bool enabled = std::getenv("APS5_NO_STORED_KNOWN_VALUES") == nullptr;
+    return enabled;
+}
+
 bool Driver::foreignWriters() {
     static const bool noted = std::getenv("APS5_NO_FOREIGN_WRITERS") == nullptr;
     return noted;
@@ -149,6 +154,7 @@ ShaderMemory::PendingWrite Driver::classifyPendingWrite(std::uint64_t address, s
         reason = &ValidateCounters::syncedShadow;
         return Policy::Sync;
     }
+    if (storedKnownValues() && !known.empty() && known.size() == bytes && Graphics::Recorder::LookupStoredBytes(address, known)) return knownValueVerify() ? Policy::VerifyKnownValue : Policy::KnownValue;
     reason = &ValidateCounters::syncedOff;
     if (!writeEvidenceEnabled()) return Policy::Sync;
     const auto writer = newestWriter(address, address + bytes);
