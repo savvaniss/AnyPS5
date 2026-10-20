@@ -4526,6 +4526,12 @@ std::size_t ShaderResources::MaxDrawSnapshotBytes() {
 std::uint64_t ShaderResources::ConstantExtentBytes(const ShaderRecompiler::DescriptorBinding& binding, std::uint32_t element, std::uint64_t bytes) {
     const bool written = element >= binding.bufferWritten.size() || binding.bufferWritten[element];
     const bool constant = element < binding.bufferConstantOffsets.size() && binding.bufferConstantOffsets[element] && element < binding.bufferExtent.size();
+    static const bool logExtent = std::getenv("APS5_LOG_EXTENT") != nullptr;
+    static std::atomic<std::uint32_t> loggedExtent{0};
+    if (logExtent && bytes >= (1u << 20) && loggedExtent.fetch_add(1) < 60) {
+        const auto* w = binding.guestDescriptor.size() >= (static_cast<std::size_t>(element) + 1u) * 4u ? binding.guestDescriptor.data() + static_cast<std::size_t>(element) * 4u : nullptr;
+        std::fprintf(stderr, "[extent] binding %u element %u count %u bytes 0x%llx written %d (flags %zu) constant %d (flags %zu) extent %u (n %zu) read %d vsharp %08x %08x %08x %08x\n", binding.binding, element, binding.count, static_cast<unsigned long long>(bytes), written ? 1 : 0, binding.bufferWritten.size(), element < binding.bufferConstantOffsets.size() && binding.bufferConstantOffsets[element] ? 1 : 0, binding.bufferConstantOffsets.size(), element < binding.bufferExtent.size() ? binding.bufferExtent[element] : 0u, binding.bufferExtent.size(), element < binding.bufferRead.size() && binding.bufferRead[element] ? 1 : 0, w ? w[0] : 0u, w ? w[1] : 0u, w ? w[2] : 0u, w ? w[3] : 0u);
+    }
     if (written || !constant || binding.guestDescriptor.size() < (static_cast<std::size_t>(element) + 1u) * 4u) return bytes;
     const auto* words = binding.guestDescriptor.data() + static_cast<std::size_t>(element) * 4u;
     const ShaderRecompiler::ShaderBufferResource descriptor{{words[0], words[1], words[2], words[3]}};
