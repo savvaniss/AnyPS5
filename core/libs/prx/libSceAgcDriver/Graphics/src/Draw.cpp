@@ -775,7 +775,7 @@ void CheckBufferAliases(std::span<const CompiledShader> shaders, const ColorTarg
             for (std::size_t offset = 0; offset + 4 <= words.size(); offset += 4) {
                 const ShaderRecompiler::ShaderBufferResource descriptor{{words[offset], words[offset + 1], words[offset + 2], words[offset + 3]}};
                 const auto address = descriptor.Base48();
-                auto size = descriptor.GetSize();
+                auto size = ShaderResources::ConstantExtentBytes(binding, static_cast<std::uint32_t>(offset / 4), descriptor.GetSize());
                 if (size == 0 || address == 0) continue;
                 if (const std::uint64_t stride = descriptor.Stride(); stride != 0 && address < target.address && address + size > target.address && address + size - target.address < stride) size = target.address - address;
                 const auto element = offset / 4;

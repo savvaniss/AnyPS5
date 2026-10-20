@@ -1630,7 +1630,7 @@ void ShaderResources::buildPrepare(std::span<const CompiledShader> shaders, cons
                         const bool written = element >= binding.bufferWritten.size() || binding.bufferWritten[element];
                         const bool atomic = element < binding.bufferAtomic.size() && binding.bufferAtomic[element];
                         const bool read = element < binding.bufferRead.size() && binding.bufferRead[element];
-                        const auto index = addGuestBuffer(std::span<const std::uint32_t>(binding.guestDescriptor).subspan(static_cast<std::size_t>(element) * 4, 4), target, indexAddress, indexBytes, written, atomic, read);
+                        const auto index = addGuestBuffer(binding, element, target, indexAddress, indexBytes, written, atomic, read);
                         const auto& push = shader.program->pushConstants;
                         if (!push.empty()) {
                             const auto position = shader.program->memoryOffsetDword * 4u + element;
@@ -3536,7 +3536,8 @@ DescriptorCache::Stats DescriptorCache::Counters() const {
     return stats;
 }
 
-std::size_t ShaderResources::addGuestBuffer(std::span<const std::uint32_t> words, const ColorTarget* target, std::uint64_t indexAddress, std::size_t indexBytes, bool written, bool atomic, bool read) {
+std::size_t ShaderResources::addGuestBuffer(const ShaderRecompiler::DescriptorBinding& binding, std::uint32_t element, const ColorTarget* target, std::uint64_t indexAddress, std::size_t indexBytes, bool written, bool atomic, bool read) {
+    const auto words = std::span<const std::uint32_t>(binding.guestDescriptor).subspan(static_cast<std::size_t>(element) * 4, 4);
     Require(words.size() == 4, "buffer descriptor must contain four DWORDs");
     Require((words[1] & 0x40000000u) == 0, "buffer descriptor has reserved bits set");
     const ShaderRecompiler::ShaderBufferResource descriptor{{words[0], words[1], words[2], words[3]}};
@@ -3548,6 +3549,7 @@ std::size_t ShaderResources::addGuestBuffer(std::span<const std::uint32_t> words
         if (mappedEnd <= address) byteSize = 0;
         else if (mappedEnd - address < context.limits.maxStorageBufferRange) byteSize = mappedEnd - address;
     }
+    if (std::getenv("APS5_ALL_BUFFERS_WRITTEN") == nullptr) byteSize = ConstantExtentBytes(binding, element, byteSize);
     if (byteSize == 0 || address == 0) {
         allocations.push_back({0, EmptyBufferBytes, false, nullptr, ShaderRecompiler::DescriptorRole::GuestBuffers, false});
         return allocations.size() - 1;
@@ -4493,7 +4495,7 @@ std::optional<std::vector<ShaderResources::MovedBuffer>> ShaderResources::MovedR
                 const auto* words = binding.guestDescriptor.data() + static_cast<std::size_t>(element) * 4u;
                 const ShaderRecompiler::ShaderBufferResource descriptor{{words[0], words[1], words[2], words[3]}};
                 const auto address = descriptor.Base48();
-                const auto size = descriptor.GetSize();
+                const auto size = ConstantExtentBytes(binding, element, descriptor.GetSize());
                 const auto index = kept->allocations[element];
                 const auto& item = allocations[index];
                 const bool empty = size == 0 || address == 0;
@@ -4519,6 +4521,17 @@ std::size_t ShaderResources::MaxDrawSnapshotBytes() {
     const char* text = std::getenv("APS5_DRAW_SNAPSHOT_MAX_MIB");
     const auto mib = text != nullptr ? std::strtoull(text, nullptr, 10) : 64ull;
     return static_cast<std::size_t>(mib * 1024ull * 1024ull);
+}
+
+std::uint64_t ShaderResources::ConstantExtentBytes(const ShaderRecompiler::DescriptorBinding& binding, std::uint32_t element, std::uint64_t bytes) {
+    const bool written = element >= binding.bufferWritten.size() || binding.bufferWritten[element];
+    const bool constant = element < binding.bufferConstantOffsets.size() && binding.bufferConstantOffsets[element] && element < binding.bufferExtent.size();
+    if (written || !constant || binding.guestDescriptor.size() < (static_cast<std::size_t>(element) + 1u) * 4u) return bytes;
+    const auto* words = binding.guestDescriptor.data() + static_cast<std::size_t>(element) * 4u;
+    const ShaderRecompiler::ShaderBufferResource descriptor{{words[0], words[1], words[2], words[3]}};
+    if (descriptor.Stride() != 0 && (descriptor.SwizzleEnabled() || descriptor.AddTid())) return bytes;
+    const auto extent = (static_cast<std::uint64_t>(binding.bufferExtent[element]) + 15u) & ~std::uint64_t{15};
+    return std::min(bytes, extent);
 }
 
 std::shared_ptr<ShaderResources::DrawBindings> ShaderResources::PrepareDrawBindings(Recorder& recorder, std::span<const MovedBuffer> moved) const {

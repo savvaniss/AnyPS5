@@ -95,6 +95,17 @@ std::uint32_t byteExtent(const MemoryInfo& memory) {
     return end > std::numeric_limits<std::uint32_t>::max() ? std::numeric_limits<std::uint32_t>::max() : static_cast<std::uint32_t>(end);
 }
 
+bool immediateZero(const IrValue* value) {
+    value = value->Resolve();
+    return value->HasImmediate() && value->Type() == IrType::U32 && value->ImmediateU32() == 0u;
+}
+
+bool constantAddress(const IrValue& inst, const MemoryInfo& memory) {
+    if (memory.formatted) return false;
+    if (inst.Opcode() == IrOpcode::ReadConstBuffer) return inst.ArgumentCount() == 2u && immediateZero(inst.Argument(1));
+    return inst.ArgumentCount() >= 4u && immediateZero(inst.Argument(1)) && immediateZero(inst.Argument(2)) && immediateZero(inst.Argument(3));
+}
+
 class Tracker {
 public:
     explicit Tracker(IrProgram& program) : m_program(program), m_info(program.Resources().info), m_builder(program) {
@@ -1396,7 +1407,7 @@ private:
         const auto access = BufferAccessOf(inst.Opcode());
         if (ValidateSource(descriptor, badDword)) {
             const auto source = InternSource(descriptor);
-            const auto resource = AddBuffer(source, memory, inst.Opcode(), inst.Flags<MemoryFlags>().pc);
+            const auto resource = AddBuffer(source, memory, inst.Opcode(), inst.Flags<MemoryFlags>().pc, constantAddress(inst, memory));
             if (resource == std::numeric_limits<std::uint32_t>::max()) fail("buffer resource limit exceeded");
             AddMemoryPatch(memoryIndex, resource, 0u, false);
             memory.gpuDescriptor = false;
@@ -1419,27 +1430,29 @@ private:
         }
     }
 
-    std::uint32_t AddBuffer(std::uint32_t source, const MemoryInfo& memory, IrOpcode op, std::uint32_t pc) {
+    std::uint32_t AddBuffer(std::uint32_t source, const MemoryInfo& memory, IrOpcode op, std::uint32_t pc, bool constant) {
         for (std::uint32_t i = 0; i < m_info.buffers.size(); i++) {
             if (m_info.buffers[i].source == source) {
-                Merge(m_info.buffers[i], memory, op, pc);
+                Merge(m_info.buffers[i], memory, op, pc, constant);
                 return i;
             }
         }
         BufferResource resource;
         resource.source = source;
         resource.firstUsePc = pc;
-        Merge(resource, memory, op, pc);
+        resource.constantOffsets = true;
+        Merge(resource, memory, op, pc, constant);
         m_info.buffers.push_back(resource);
         return static_cast<std::uint32_t>(m_info.buffers.size() - 1);
     }
 
-    static void Merge(BufferResource& resource, const MemoryInfo& memory, IrOpcode op, std::uint32_t pc) {
+    static void Merge(BufferResource& resource, const MemoryInfo& memory, IrOpcode op, std::uint32_t pc, bool constant) {
         const auto access = BufferAccessOf(op);
         const bool atomic = access == BufferAccess::Atomic;
         const bool write = access == BufferAccess::Write || atomic;
         resource.firstUsePc = std::min(resource.firstUsePc, pc);
         resource.maxByteExtent = std::max(resource.maxByteExtent, byteExtent(memory));
+        resource.constantOffsets = resource.constantOffsets && constant;
         resource.read = resource.read || !write || atomic;
         resource.written = resource.written || write;
         resource.atomic = resource.atomic || atomic;
