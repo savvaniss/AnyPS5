@@ -5,6 +5,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <mutex>
+#include <new>
 #include <stdexcept>
 #include <string>
 #include <span>
@@ -277,6 +278,8 @@ void WriteMarker(std::uint32_t* at, std::uint32_t kind, const char* marker, std:
 }
 
 extern "C" {
+int APS5_VABI sceAgcDriverSetTFRing(const volatile void* base, std::uint32_t size);
+
 
 int APS5_VABI sceGnmSetPsShader(std::uint32_t* cmd, std::uint32_t size, const std::uint32_t* regs) {
     if (!cmd || size <= 0x27) return -1;
@@ -524,9 +527,16 @@ int APS5_VABI sceGnmGetEqTimeStamp() {
     return 0;
 }
 
-int APS5_VABI sceGnmGetTheTessellationFactorRingBufferBaseAddress() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+std::uintptr_t APS5_VABI sceGnmGetTheTessellationFactorRingBufferBaseAddress() {
+    constexpr std::size_t ringSize = 0x20000;
+    constexpr std::size_t ringAlignment = 0x10000;
+    static const std::uintptr_t ring = [] {
+        auto* memory = static_cast<std::uint8_t*>(::operator new(ringSize, std::align_val_t{ringAlignment}));
+        std::memset(memory, 0, ringSize);
+        sceAgcDriverSetTFRing(memory, static_cast<std::uint32_t>(ringSize));
+        return reinterpret_cast<std::uintptr_t>(memory);
+    }();
+    return ring;
 }
 
 int APS5_VABI sceGnmLogicalCuIndexToPhysicalCuIndex() {

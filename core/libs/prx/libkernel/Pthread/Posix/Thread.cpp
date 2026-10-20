@@ -296,6 +296,16 @@ void APS5_VABI pthread_testcancel_nid_postfix(void) {
     scePthreadTestcancel();
 }
 
+void APS5_VABI pthread_cleanup_push_nid_postfix(void (APS5_VABI* routine)(void*), void* argument) {
+    auto* handler = new CleanupHandler{};
+    __pthread_cleanup_push_imp_nid_postfix(routine, argument, handler);
+    handler->onHeap = 1;
+}
+
+void APS5_VABI pthread_cleanup_pop_nid_postfix(int execute) {
+    __pthread_cleanup_pop_imp_nid_postfix(execute);
+}
+
 void APS5_VABI pthread_yield_nid_postfix(void) {
     std::this_thread::yield();
 }

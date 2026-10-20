@@ -901,6 +901,7 @@ void APS5_VABI __pthread_cleanup_pop_imp_nid_postfix(int execute) {
     if (!handler) return;
     CurrentGuestState().cleanupHandlers = handler->previous;
     if (execute) handler->routine(handler->argument);
+    if (handler->onHeap) delete handler;
 }
 
 int APS5_VABI scePthreadEqual(Pthread thread1, Pthread thread2) {

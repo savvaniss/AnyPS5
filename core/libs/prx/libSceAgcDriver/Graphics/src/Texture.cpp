@@ -514,6 +514,7 @@ Texture::Texture(const Context& context, const std::shared_ptr<StorageTexture>& 
         AGC_LOG_DEFERRED(stdout, "Texture address=0x%llx %ux%u mips=%u layers=%u block copy of storage image (guest format %u -> vk %d)", static_cast<unsigned long long>(descriptor.baseAddress), descriptor.width, descriptor.height, descriptor.mipCount, copyLayers, source->Descriptor().format, static_cast<int>(blockFormat));
 
         VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.flags = SrgbTwinFormat(context, blockFormat) != VK_FORMAT_UNDEFINED ? VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT : 0u;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
         imageInfo.format = blockFormat;
         imageInfo.extent = {descriptor.width, descriptor.height, 1u};
@@ -550,6 +551,7 @@ Texture::Texture(const Context& context, const std::shared_ptr<StorageTexture>& 
         viewRange = {viewInfo.viewType, viewInfo.subresourceRange.levelCount, viewInfo.subresourceRange.layerCount};
         createFirstLayerView(descriptor, viewInfo);
         prepareBaseLevelView(descriptor, viewInfo);
+        prepareSrgbView(descriptor, viewInfo);
     } catch (...) {
         release();
         throw;
