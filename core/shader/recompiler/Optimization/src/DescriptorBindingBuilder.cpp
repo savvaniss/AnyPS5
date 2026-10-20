@@ -311,7 +311,7 @@ DescriptorBindingPlan DescriptorBindingBuilder::Prepare(const IrBindingLayout& l
         const auto& buffer = info.buffers[index];
         const auto format = (descriptor.dwords[3] >> 12u) & 0x7fu;
         const bool present = descriptor.dwords[2] != 0u && (descriptor.dwords[0] != 0u || (descriptor.dwords[1] & 0xffffu) != 0u);
-        if (buffer.descriptorFormatted && (format > static_cast<std::uint32_t>(IrBufferFormat::Format32_32_32_32Float) || (present && format == 0u))) fail("buffer specialization has an unsupported format");
+        if (buffer.descriptorFormatted && (format > static_cast<std::uint32_t>(IrBufferFormat::Format32_32_32_32Float) || (present && format == 0u))) fail("buffer specialization has an unsupported format (buffer " + std::to_string(index) + " V# " + [&] { char text[48]; std::snprintf(text, sizeof(text), "%08x %08x %08x %08x", descriptor.dwords[0], descriptor.dwords[1], descriptor.dwords[2], descriptor.dwords[3]); return std::string(text); }() + ")");
         const auto misalignment = present ? descriptor.dwords[0] & 3u : 0u;
         if (buffer.atomic && misalignment != 0u) fail("buffer atomic on a V# whose base is not DWORD aligned");
         auto alignment = static_cast<std::uint32_t>(buffer.typedAlignment);

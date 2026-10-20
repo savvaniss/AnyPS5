@@ -57,6 +57,8 @@ void Driver::timed(double WorkerProfile::*bucket, TWork&& work) {
 }
 
 void Driver::execute(const Submission& submission) {
+    static const bool logSerials = std::getenv("APS5_LOG_SERIALS") != nullptr;
+    if (logSerials && submission.queue == 0) std::fprintf(stderr, "[serial] %.3f start %llu dwords %zu last %u\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(), static_cast<unsigned long long>(submission.serial), submission.commands.size(), submission.commands.empty() ? 0u : submission.commands.back());
     auto* submissionTiming = includeTimingSubmission(submission, true);
     struct FlipHold {
         Driver& driver;

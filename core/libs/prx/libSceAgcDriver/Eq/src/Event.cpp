@@ -1,6 +1,9 @@
 #include "prx/libSceAgcDriver/Eq/include/Event.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <cstddef>
 #include <mutex>
@@ -67,6 +70,8 @@ int DeleteEvent(KernelEqueue eq, std::uintptr_t ident, const char* caller) {
 }
 
 void AgcDriverDeliverEopInterrupt(std::uint32_t queue) {
+    static const bool logEop = std::getenv("APS5_LOG_EOP") != nullptr;
+    if (logEop) std::fprintf(stderr, "[eop] %.3f deliver queue %u\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(), queue);
     std::vector<Registration> registrations;
     {
         std::lock_guard lock(g_mutex);

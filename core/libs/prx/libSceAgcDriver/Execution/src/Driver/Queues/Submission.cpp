@@ -498,7 +498,8 @@ void Driver::noteHeldAtSubmit(Submission& submission, std::size_t cursor) {
     }
     std::uint64_t value = *reinterpret_cast<const volatile std::uint32_t*>(address);
     if (bytes == 8) value |= static_cast<std::uint64_t>(*reinterpret_cast<const volatile std::uint32_t*>(address + 4)) << 32u;
-    if (Pm4::WaitComparesValue(packet, value)) submission.heldAtSubmit.insert(cursor);
+    static const bool noHeld = std::getenv("APS5_NO_HELD_AT_SUBMIT") != nullptr;
+    if (!noHeld && Pm4::WaitComparesValue(packet, value)) submission.heldAtSubmit.insert(cursor);
 }
 
 void Driver::forgetUnfinishedWrites(QueueWorker& worker, const Submission& submission) {

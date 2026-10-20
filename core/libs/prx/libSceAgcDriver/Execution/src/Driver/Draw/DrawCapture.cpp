@@ -10,6 +10,9 @@
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
+#include <chrono>
+#include <cstdio>
 
 namespace AgcDriver::DriverDetail {
 
@@ -33,6 +36,23 @@ std::shared_ptr<const ShaderRecompiler::RecompileResult> Driver::materializeDraw
     stageCapture.forgetSerial = GuestMemory::ForgetSerial();
     stageCapture.pushOffset = pushOffset;
     const auto named = [&](const std::exception& error) {
+        static const bool debugTables = std::getenv("APS5_DEBUG_TABLES") != nullptr;
+        if (debugTables) {
+            std::fprintf(stderr, "[tables] %.3f failure in serial %llu\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(), static_cast<unsigned long long>(submission.serial));
+            const auto& user = program.userData;
+            for (std::size_t u = 0; u + 1 < user.size(); ++u) {
+                const auto address = static_cast<std::uint64_t>(user[u]) | (static_cast<std::uint64_t>(user[u + 1]) << 32u);
+                if (address < 0x200000000ull || address >= 0x400000000ull || (address & 3u) != 0) continue;
+                for (int pass = 0; pass < 2; ++pass) {
+                    std::uint32_t words[32]{};
+                    std::memcpy(words, reinterpret_cast<const void*>(address), sizeof(words));
+                    std::fprintf(stderr, "[tables] pass %d user[%zu] 0x%llx:", pass, u, static_cast<unsigned long long>(address));
+                    for (std::size_t w = 0; w < 32; ++w) std::fprintf(stderr, "%s%08x", w % 4 == 0 ? "  " : " ", words[w]);
+                    std::fprintf(stderr, "\n");
+                    if (pass == 0) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+            }
+        }
         static const bool dumpShaders = std::getenv("APS5_DUMP_SHADERS") != nullptr;
         std::string dump;
         if (dumpShaders) {

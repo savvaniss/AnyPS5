@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstdio>
+#include <chrono>
+#include <thread>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
@@ -223,6 +226,76 @@ std::vector<std::uint32_t> MergeEngines(std::span<const std::uint32_t> dcb, std:
 void SubmitLocked(std::uint32_t count, std::uint32_t* const* dcbs, const std::uint32_t* dcbBytes, std::uint32_t* const* ccbs, const std::uint32_t* ccbBytes) {
     static FrameStart frameStart;
     std::vector<std::vector<std::uint32_t>> merged;
+    static const bool logSubmits = std::getenv("APS5_GNM_LOG_SUBMITS") != nullptr;
+    for (std::uint32_t i = 0; logSubmits && i < count; ++i) std::fprintf(stderr, "[gnm] submit %u/%u dcb %p + 0x%x ccb %p + 0x%x\n", i, count, static_cast<void*>(dcbs[i]), dcbBytes[i], ccbs ? static_cast<void*>(ccbs[i]) : nullptr, ccbBytes ? ccbBytes[i] : 0u);
+    static std::uint32_t submitIndex = 0;
+    static const std::uint32_t dumpFrom = std::getenv("APS5_GNM_DUMP_FROM") ? static_cast<std::uint32_t>(std::strtoul(std::getenv("APS5_GNM_DUMP_FROM"), nullptr, 0)) : 0xffffffffu;
+    static const std::uint32_t dumpCount = std::getenv("APS5_GNM_DUMP_COUNT") ? static_cast<std::uint32_t>(std::strtoul(std::getenv("APS5_GNM_DUMP_COUNT"), nullptr, 0)) : 2u;
+    if (submitIndex >= dumpFrom && submitIndex - dumpFrom < dumpCount) {
+        for (std::uint32_t i = 0; i < count; ++i) {
+            const std::span<const std::uint32_t> words(dcbs[i], dcbBytes[i] / 4);
+            for (std::size_t at = 0; at < words.size();) {
+                const auto packet = PacketAt(words, at, "draw command buffer");
+                const auto opcode = Opcode(packet[0]);
+                if (opcode != OpSetContextReg) {
+                    std::fprintf(stderr, "[gnm] #%u %p +0x%zx op 0x%02x", submitIndex, static_cast<const void*>(dcbs[i] + at), at * 4, opcode);
+                    for (std::size_t w = 1; w < packet.size() && w <= 9; ++w) std::fprintf(stderr, " %08x", packet[w]);
+                    std::fprintf(stderr, packet.size() > 10 ? " (+%zu)\n" : "\n", packet.size() - 10);
+                }
+                at += packet.size();
+            }
+        }
+    }
+    static const bool watchFlags = std::getenv("APS5_GNM_WATCH_FLAGS") != nullptr;
+    static const auto started = std::chrono::steady_clock::now();
+    static_cast<void>(started);
+    const auto sinceStart = [] { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
+    if (watchFlags && count != 0) {
+        static std::atomic<std::uintptr_t> flags[2]{};
+        const std::span<const std::uint32_t> words(dcbs[0], dcbBytes[0] / 4);
+        std::uintptr_t flag = 0;
+        for (std::size_t at = 0; at < words.size() && flag == 0;) {
+            const auto packet = PacketAt(words, at, "draw command buffer");
+            if (Opcode(packet[0]) == OpWaitRegMem && packet.size() == 7 && ((packet[1] >> 4) & 3u) == 1u) flag = packet[2] | (static_cast<std::uintptr_t>(packet[3]) << 32);
+            at += packet.size();
+        }
+        if (flag != 0 && flags[0].load() != flag && flags[1].load() != flag) {
+            if (flags[0].load() == 0) flags[0] = flag; else if (flags[1].load() == 0) flags[1] = flag;
+            static std::once_flag once;
+            std::call_once(once, [sinceStart] {
+                std::thread([sinceStart] {
+                    std::uint32_t last[2] = {0xffffffffu, 0xffffffffu};
+                    const char* watchText = std::getenv("APS5_GNM_WATCH_ADDR");
+                    const auto watched = watchText ? static_cast<std::uintptr_t>(std::strtoull(watchText, nullptr, 0)) : std::uintptr_t{0};
+                    std::uint32_t seen[48]{};
+                    bool primed = false;
+                    for (;;) {
+                        if (watched != 0) {
+                            std::uint32_t now[48];
+                            std::memcpy(now, reinterpret_cast<const void*>(watched), sizeof(now));
+                            if (!primed || std::memcmp(now, seen, sizeof(now)) != 0) {
+                                std::fprintf(stderr, "[watch] %.3f ms", sinceStart());
+                                for (std::size_t w = 0; w < 48; ++w) std::fprintf(stderr, "%s%08x", w % 4 == 0 ? "  " : " ", now[w]);
+                                std::fprintf(stderr, "\n");
+                                std::memcpy(seen, now, sizeof(now));
+                                primed = true;
+                            }
+                        }
+                        for (int f = 0; f < 2; ++f) {
+                            const auto address = flags[f].load();
+                            if (address == 0) continue;
+                            const auto value = std::atomic_ref<const std::uint32_t>(*reinterpret_cast<const std::uint32_t*>(address)).load();
+                            if (value != last[f]) std::fprintf(stderr, "[flag] %.3f ms flag %d %p = %u\n", sinceStart(), f, reinterpret_cast<void*>(address), value);
+                            last[f] = value;
+                        }
+                        std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    }
+                }).detach();
+            });
+        }
+        std::fprintf(stderr, "[flag] %.3f ms submit %u dcb %p flag %p = %u\n", sinceStart(), submitIndex, static_cast<void*>(dcbs[0]), reinterpret_cast<void*>(flag), flag ? *reinterpret_cast<const volatile std::uint32_t*>(flag) : 0u);
+    }
+    ++submitIndex;
     for (std::uint32_t i = 0; i < count; ++i) {
         const auto constantWords = ccbBytes && ccbs[i] ? ccbBytes[i] / 4 : 0;
         merged.push_back(MergeEngines({dcbs[i], dcbBytes[i] / 4}, {ccbs ? ccbs[i] : nullptr, constantWords}));
@@ -233,7 +306,18 @@ void SubmitLocked(std::uint32_t count, std::uint32_t* const* dcbs, const std::ui
         AgcDriverSubmitGraphics_nid_postfix(frameStart.words, frameStart.size);
         g_frameStarted = true;
     }
+    static const bool measureLag = std::getenv("APS5_GNM_LAG") != nullptr;
+    static std::uint32_t processed = 0;
+    if (measureLag && !merged.empty()) {
+        const auto address = reinterpret_cast<std::uintptr_t>(&processed);
+        auto& last = merged.back();
+        last.insert(last.end(), {Header(OpWriteData, 4), WriteDataToMemory, static_cast<std::uint32_t>(address), static_cast<std::uint32_t>(address >> 32), submitIndex});
+        const auto seen = std::atomic_ref<std::uint32_t>(processed).load();
+        if (submitIndex - seen >= 3) std::fprintf(stderr, "[gnm] lag: submit %u while the worker finished %u\n", submitIndex, seen);
+    }
     for (auto& commands : merged) AgcDriverSubmitGraphics_nid_postfix(commands.data(), static_cast<std::uint32_t>(commands.size()));
+    static const bool syncSubmit = std::getenv("APS5_GNM_SYNC_SUBMIT") != nullptr;
+    if (syncSubmit) AgcDriverWaitIdle_nid_postfix();
 }
 
 std::uintptr_t BufferLabel(std::uint32_t handle, std::uint32_t index) {

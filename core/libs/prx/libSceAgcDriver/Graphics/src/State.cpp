@@ -290,13 +290,13 @@ VkStencilOpState stencilFace(std::uint32_t compare, std::uint32_t ops, std::uint
 void decodeDepth(const Registers& cx, std::uint32_t depthControl, bool testValExport, State& result) {
     zero(cx, 0x000, 0x0000101cu, "depth copy, resummarize or decompress draws (DB_RENDER_CONTROL)");
     const bool depthClear = (read(cx, 0x000) & 1u) != 0;
-    const bool stencilClear = (read(cx, 0x000) & 2u) != 0;
     const auto view = read(cx, 0x002);
     zero(cx, 0x002, 0x3c000000u, "depth mips (DB_DEPTH_VIEW MIP_LEVEL)");
     zero(cx, 0x010, 0x000f1000u, "partially resident or mipmapped depth (DB_Z_INFO)");
     zero(cx, 0x011, 0x00001000u, "partially resident stencil (DB_STENCIL_INFO)");
     const auto zFormat = read(cx, 0x010) & 3u;
     const bool stencil = (read(cx, 0x011) & 1u) != 0;
+    const bool stencilClear = stencil && (read(cx, 0x000) & 2u) != 0;
     Require(zFormat != 2, "Z_24 depth is unsupported");
     if (zFormat == 0) depthControl &= ~6u;
     if (!stencil) depthControl &= ~1u;
@@ -393,16 +393,21 @@ void decodeDepthBias(const Registers& cx, std::uint32_t raster, State& result) {
     const bool perFace = front && back && (frontBias != backBias || read(cx, 0x2e0) != read(cx, 0x2e2) || read(cx, 0x2e1) != read(cx, 0x2e3));
     const bool d16 = result.depth->format == VK_FORMAT_D16_UNORM || result.depth->format == VK_FORMAT_D16_UNORM_S8_UINT;
     const auto format = find(cx, 0x2de) == cx.end() ? (d16 ? 0xf0u : 0x1e9u) : read(cx, 0x2de);
-    if (format != (d16 ? 0xf0u : 0x1e9u)) throw std::runtime_error("AGC graphics: " + zeroMessage(0x2de, format, "depth bias in units other than the depth format"));
+    float constantScale = 1.0f;
+    if (format != (d16 ? 0xf0u : 0x1e9u)) {
+        const auto bits = static_cast<std::uint32_t>(-static_cast<std::int32_t>(static_cast<std::int8_t>(format & 0xffu)));
+        if (d16 || (format & ~0xffu) != 0 || bits == 0u || bits > 24u) throw std::runtime_error("AGC graphics: " + zeroMessage(0x2de, format, "depth bias in units other than the depth format"));
+        constantScale = std::ldexp(1.0f, static_cast<int>(24u - bits));
+    }
     const auto scale = front && frontBias ? 0x2e0u : 0x2e2u;
     result.depthBias = true;
     result.depthBiasSlope = frontBias || !perFace ? readFloat(cx, scale) / 16.0f : 0.0f;
-    result.depthBiasConstant = frontBias || !perFace ? readFloat(cx, scale + 1u) : 0.0f;
+    result.depthBiasConstant = frontBias || !perFace ? readFloat(cx, scale + 1u) * constantScale : 0.0f;
     result.depthBiasClamp = readFloat(cx, 0x2df);
     if (!perFace) return;
     result.depthBiasPerFace = true;
     result.backDepthBiasSlope = backBias ? readFloat(cx, 0x2e2) / 16.0f : 0.0f;
-    result.backDepthBiasConstant = backBias ? readFloat(cx, 0x2e3) : 0.0f;
+    result.backDepthBiasConstant = backBias ? readFloat(cx, 0x2e3) * constantScale : 0.0f;
 }
 
 bool depthPassThrough(std::uint32_t depthControl) {
@@ -1488,7 +1493,8 @@ ColorTarget DecodeGcnColorBuffer(const Registers& cx, std::uint32_t slot) {
     const auto decoded = DecodeColorFormat((info >> 2u) & 0x1fu, number, swap);
     const auto attrib = read(cx, 0x31d + stride);
     color.samples = 1u << ((attrib >> 12u) & 7u);
-    Require(color.samples == 1u, "multisampled GCN color targets are not implemented");
+    Require(color.samples <= 8u, "GCN color targets with more than eight samples are not implemented");
+    Require((1u << ((attrib >> 15u) & 3u)) == color.samples, "GCN color targets with fewer fragments than samples (EQAA) are not implemented");
     Require((info & 0x3u) == 0 && (info & 0x80u) == 0, "endian-swapped or linear-general GCN color targets are not implemented");
     Require((info & 0x8000u) != 0 || number == 7 || number == 4 || number == 5, "unclamped normalized color is unsupported");
     const auto view = read(cx, 0x31b + stride);
@@ -1518,6 +1524,12 @@ ColorTarget DecodeGcnColorBuffer(const Registers& cx, std::uint32_t slot) {
     for (std::uint32_t word = 0; word < 2; ++word) {
         const auto clear = find(cx, 0x323 + word + stride);
         color.clearWords[word] = clear == cx.end() ? 0u : clear->second;
+    }
+    if (color.samples > 1u && (info & 0x6000u) != 0) {
+        color.cmaskAddress = static_cast<std::uint64_t>(read(cx, 0x31f + stride)) << 8u;
+        Require(color.cmaskAddress != 0, "a multisampled GCN color target with fast clear or FMASK compression has no CMASK address");
+        color.cmaskBytes = (static_cast<std::size_t>(read(cx, 0x320 + stride) & 0x3fffu) + 1u) * 128u;
+        color.cmaskFastClear = (info & 0x2000u) != 0;
     }
     GuestMemory::CheckRange(reinterpret_cast<const void*>(color.address), color.bytes, layout.Alignment(), true);
     return color;
@@ -1700,11 +1712,20 @@ std::optional<ColorMetadataPass> DecodeColorMetadataPass(const QueueState& queue
     intersect(covered, cx, 0x90, false);
     if ((read(cx, 0x292) & 2u) != 0) intersect(covered, cx, 0x94, false);
     const auto requireCovered = [&](const ColorTarget& target) {
-        const auto width = static_cast<float>(target.extent.width);
-        const auto height = static_cast<float>(target.extent.height);
+        auto extent = target.extent;
+        if (ColorTileModeIsGcn(target.tileMode) && covered.offset.x == 0 && covered.offset.y == 0 && xo - xs <= 0.0f && yo - ys <= 0.0f) {
+            const VkExtent2D visible{std::min(extent.width, std::min(covered.extent.width, static_cast<std::uint32_t>(std::max(0.0f, xo + xs)))), std::min(extent.height, std::min(covered.extent.height, static_cast<std::uint32_t>(std::max(0.0f, yo + ys))))};
+            if (visible.width != 0 && visible.height != 0 && ColorTargetLayout(visible.width, visible.height, target.tileMode, target.elementBytes).Bytes() == target.bytes) extent = visible;
+        }
+        const auto width = static_cast<float>(extent.width);
+        const auto height = static_cast<float>(extent.height);
         const bool viewportCovers = xo - xs <= 0.0f && xo + xs >= width && yo - ys <= 0.0f && yo + ys >= height;
-        const bool scissorCovers = covered.offset.x == 0 && covered.offset.y == 0 && covered.extent.width >= target.extent.width && covered.extent.height >= target.extent.height;
-        Require(viewportCovers && scissorCovers, "CB metadata pass over part of a color target");
+        const bool scissorCovers = covered.offset.x == 0 && covered.offset.y == 0 && covered.extent.width >= extent.width && covered.extent.height >= extent.height;
+        if (!(viewportCovers && scissorCovers)) {
+            char text[256];
+            std::snprintf(text, sizeof(text), "CB metadata pass over part of a color target (%ux%u; viewport x %g..%g y %g..%g; scissor %d,%d %ux%u)", target.extent.width, target.extent.height, xo - xs, xo + xs, yo - ys, yo + ys, covered.offset.x, covered.offset.y, covered.extent.width, covered.extent.height);
+            Require(false, text);
+        }
     };
     if (resolve) {
         const auto source = DecodeColorBuffer(cx, 0);
@@ -1763,10 +1784,11 @@ std::string DrawRejection(const QueueState& queue, bool indexed) {
     if (value(cx, 0x200, word)) {
         const auto renderControl = find(cx, 0x000);
         const bool depthClear = renderControl != cx.end() && (renderControl->second & 1u) != 0;
-        const bool stencilClear = renderControl != cx.end() && (renderControl->second & 2u) != 0;
+        std::uint32_t stencilInfo = 0;
+        const bool stencilClear = renderControl != cx.end() && (renderControl->second & 2u) != 0 && value(cx, 0x011, stencilInfo) && (stencilInfo & 1u) != 0;
         if (stencilClear && !depthPlanesAbsent(cx)) {
-            std::uint32_t stencil = 0, view = 0;
-            if ((value(cx, 0x011, stencil) && (stencil & 1u) == 0) || (value(cx, 0x002, view) && (view & 0x02000000u) != 0)) return require(false, "stencil clear requires a writable stencil plane");
+            std::uint32_t view = 0;
+            if (value(cx, 0x002, view) && (view & 0x02000000u) != 0) return require(false, "stencil clear requires a writable stencil plane");
         }
         if (depthClear && !depthPlanesAbsent(cx)) {
             std::uint32_t z = 0, view = 0;

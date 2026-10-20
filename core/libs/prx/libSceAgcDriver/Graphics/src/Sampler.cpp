@@ -1,10 +1,31 @@
 #include "prx/libSceAgcDriver/Graphics/include/Sampler.hpp"
 #include "prx/libSceAgcDriver/Graphics/include/TextureFormat.hpp"
+#include "RdnaDecoder/RdnaInstructionDecoder.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <string>
 
 namespace AgcDriver::Graphics {
+
+namespace {
+
+bool HasSrgbForm(VkFormat format) {
+    switch (format) {
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+        case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+        case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+        case VK_FORMAT_BC2_UNORM_BLOCK:
+        case VK_FORMAT_BC3_UNORM_BLOCK:
+        case VK_FORMAT_BC7_UNORM_BLOCK: return true;
+        default: return false;
+    }
+}
+
+}
 
     void Sampler::Validate(const Context& context, const GuestSamplerResource& descriptor) {
         Require(!descriptor.anisotropyEnable || context.samplerAnisotropy, "guest sampler descriptor requests anisotropic filtering which the device does not support");
@@ -125,6 +146,7 @@ namespace AgcDriver::Graphics {
 
     bool ForcesDegammaOn(std::uint32_t guestFormat, std::uint32_t samplerMask, std::span<const std::shared_ptr<Sampler>> samplers) {
         if (IsSrgbTextureFormat(guestFormat)) return false;
+        if (ShaderRecompiler::GcnGuestShaders() && !HasSrgbForm(ResolveTextureFormat(guestFormat))) return false;
         for (std::uint32_t element = 0; element < 32u && element < samplers.size(); ++element) {
             if (((samplerMask >> element) & 1u) != 0u && samplers[element]->ForcesDegamma()) return true;
         }

@@ -858,6 +858,7 @@ void materializeSnapshot(const IrResourcePlan& plan, const SrtRuntime& runtime, 
         if (descriptor.dwordCount != 8u) {
             throw std::runtime_error("image descriptor has an invalid width");
         }
+        const auto guestWords = descriptor.dwords;
         if (GcnGuestShaders()) {
             const auto words = GcnImageWords(std::span<const std::uint32_t, 8>(descriptor.dwords.data(), 8u));
             std::copy(words.begin(), words.end(), descriptor.dwords.begin());
@@ -868,7 +869,9 @@ void materializeSnapshot(const IrResourcePlan& plan, const SrtRuntime& runtime, 
             descriptor.dwordCount = 8u;
         }
         if (!validImageDescriptor(descriptor, image.r128) && !nullImageDescriptor(image, descriptor)) {
-            throw std::runtime_error("runtime image descriptor is invalid");
+            char detail[192];
+            std::snprintf(detail, sizeof(detail), " (image %u T# %08x %08x %08x %08x %08x %08x %08x %08x)", i, guestWords[0], guestWords[1], guestWords[2], guestWords[3], guestWords[4], guestWords[5], guestWords[6], guestWords[7]);
+            throw std::runtime_error(std::string("runtime image descriptor is invalid") + detail);
         }
         snapshot.images[i] = descriptor;
     }
