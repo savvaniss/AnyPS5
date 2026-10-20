@@ -786,6 +786,7 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
     if (!thread) return SCE_KERNEL_ERROR_EINVAL;
     if (thread->_detached) return SCE_KERNEL_ERROR_EINVAL;
     if (thread == CurrentGuestState().current) return SCE_KERNEL_ERROR_EDEADLK;
+    if (thread->_joined.exchange(true, std::memory_order_acq_rel)) return SCE_KERNEL_ERROR_ESRCH;
     ThreadCancel::Check();
     {
         std::unique_lock lock(thread->_join_mtx);
@@ -795,7 +796,6 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
     if (WaitForSingleObject(thread->nativeHandle, INFINITE) != WAIT_OBJECT_0)
         throw std::system_error(GetLastError(), std::system_category(), "Joining guest thread");
     if (retval) *retval = thread->_retval;
-    ReleaseThread(thread);
 #else
     if (const int result = pthread_join(thread->hostThread, nullptr); result != 0)
         throw std::system_error(result, std::generic_category(), "Joining guest thread");
