@@ -775,11 +775,16 @@ void CheckBufferAliases(std::span<const CompiledShader> shaders, const ColorTarg
             for (std::size_t offset = 0; offset + 4 <= words.size(); offset += 4) {
                 const ShaderRecompiler::ShaderBufferResource descriptor{{words[offset], words[offset + 1], words[offset + 2], words[offset + 3]}};
                 const auto address = descriptor.Base48();
-                const auto size = descriptor.GetSize();
+                auto size = descriptor.GetSize();
                 if (size == 0 || address == 0) continue;
+                if (const std::uint64_t stride = descriptor.Stride(); stride != 0 && address < target.address && address + size > target.address && address + size - target.address < stride) size = target.address - address;
                 const auto element = offset / 4;
                 const bool written = element >= binding.bufferWritten.size() || binding.bufferWritten[element];
-                Require(!overlap(address, size, target.address, target.bytes), "shader buffer aliases the render target");
+                if (overlap(address, size, target.address, target.bytes)) {
+                    char text[256];
+                    std::snprintf(text, sizeof(text), "shader buffer 0x%llx+0x%llx (V# %08x %08x %08x %08x) aliases the render target 0x%llx+0x%llx", static_cast<unsigned long long>(address), static_cast<unsigned long long>(size), words[offset], words[offset + 1], words[offset + 2], words[offset + 3], static_cast<unsigned long long>(target.address), static_cast<unsigned long long>(target.bytes));
+                    Require(false, text);
+                }
                 Require(!written || !overlap(address, size, indexAddress, indexBytes), "writable shader buffer aliases the index buffer");
             }
         }
@@ -2092,7 +2097,8 @@ void Draw(const Context& context, const State& state, const Pm4::DrawParameters&
         timer.phase(PhaseSetup);
         // Debug aid: APS5_NO_RESIDENT_TARGETS=1 copies every target in and out again.
         static const bool residentTargets = std::getenv("APS5_NO_RESIDENT_TARGETS") == nullptr;
-        if ((binding.gpuTiling || (!ColorTileModeIsLinear(color.tileMode) && context.detiler != nullptr)) && residentTargets) {
+        static const bool residentLinear = std::getenv("APS5_RESIDENT_LINEAR") != nullptr;
+        if ((binding.gpuTiling || ((residentLinear || !ColorTileModeIsLinear(color.tileMode)) && context.detiler != nullptr)) && residentTargets) {
             // The lookup refreshes the image on every draw (StorageTexture::Refresh: FlushPending,
             // CollectWrites over the target's pages, the DCC key scan of TextureClearKeys, then
             // UnchangedSince). The page walk is skipped while the worker's collect epoch lasts
@@ -2119,6 +2125,11 @@ void Draw(const Context& context, const State& state, const Pm4::DrawParameters&
             binding.proxied = AttachmentProxyFormat(context, color.format) != VK_FORMAT_UNDEFINED;
             targetViews.push_back(binding.proxied ? binding.resident->AttachmentProxyView() : binding.resident->AttachmentView(color.format, color.mip, color.depthSlice, color.layers, color.arraySlice));
             continue;
+        }
+        {
+            static const bool logCopied = std::getenv("APS5_LOG_COPIED_TARGETS") != nullptr;
+            static std::set<std::uint64_t> reported;
+            if (logCopied && reported.size() < 64 && reported.insert(color.address).second) std::fprintf(stderr, "[copied-target] 0x%llx %ux%u tile %d format %d element %u bytes 0x%llx\n", static_cast<unsigned long long>(color.address), color.extent.width, color.extent.height, static_cast<int>(color.tileMode), static_cast<int>(color.format), color.elementBytes, static_cast<unsigned long long>(color.bytes));
         }
         materializeCmaskClear(context, color, nullptr);
         Require(!color.mipTail || binding.gpuTiling, "rendering into a packed mip tail requires the GPU tiled fallback");

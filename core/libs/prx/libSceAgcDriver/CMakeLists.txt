@@ -2445,3 +2445,5 @@ if(BUILD_TESTING)
     list(FILTER agcRegisteredTests EXCLUDE REGEX "^(agc_pipeline_journal|agc_driver_pipeline_journal)$")
     set_property(TEST ${agcRegisteredTests} APPEND PROPERTY ENVIRONMENT "APS5_NO_PIPELINE_JOURNAL=1")
 endif()
+
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/ShaderResources.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/Draw.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/Recorder.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/Driver/Draw/DrawPipeline.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/GuestMemory.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/ColorTargetTransfer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/Resources.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/VulkanDevice.cpp PROPERTIES COMPILE_OPTIONS -g1)

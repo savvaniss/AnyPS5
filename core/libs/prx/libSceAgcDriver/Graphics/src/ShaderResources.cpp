@@ -3563,8 +3563,13 @@ std::size_t ShaderResources::addGuestBuffer(std::span<const std::uint32_t> words
             const auto allocationEnd = RegisteredReadableEnd(address);
             if (allocationEnd > address && allocationEnd < end && end - allocationEnd < stride) size = static_cast<std::size_t>(allocationEnd - address);
         }
+        if (target != nullptr && address < target->address && address + size > target->address && address + size - target->address < stride) size = static_cast<std::size_t>(target->address - address);
     }
-    Require(target == nullptr || !overlap(address, size, target->address, target->bytes), "shader buffer aliases the render target");
+    if (target != nullptr && overlap(address, size, target->address, target->bytes)) {
+        char text[256];
+        std::snprintf(text, sizeof(text), "shader buffer 0x%llx+0x%zx (stride %llu) aliases the render target 0x%llx+0x%llx (%ux%u, %u samples)", static_cast<unsigned long long>(address), size, static_cast<unsigned long long>(descriptor.Stride()), static_cast<unsigned long long>(target->address), static_cast<unsigned long long>(target->bytes), target->extent.width, target->extent.height, target->samples);
+        Require(false, text);
+    }
     // APS5_ALL_BUFFERS_WRITTEN=1: every element is noted as written, as before bufferWritten existed.
     static const bool allWritten = std::getenv("APS5_ALL_BUFFERS_WRITTEN") != nullptr;
     Require(!written || !overlap(address, size, indexAddress, indexBytes), "writable shader buffer aliases the index buffer");
@@ -4555,6 +4560,8 @@ std::shared_ptr<ShaderResources::DrawBindings> ShaderResources::PrepareDrawBindi
         if (override != moved.end()) {
             address = override->address;
             size = override->size;
+            static const bool capMoved = std::getenv("APS5_CAP_MOVED") != nullptr;
+            if (capMoved && size > 0x10000u) size = 0x10000u;
         } else {
             if (!item.guest || item.written || guestMemory.WritesOverlap(item.address, item.size)) continue;
             const bool direct = std::any_of(reads.begin(), reads.end(), [&](const auto& range) { return item.address >= range.first && item.address < range.second && item.size <= range.second - item.address; });
@@ -4582,6 +4589,9 @@ std::shared_ptr<ShaderResources::DrawBindings> ShaderResources::PrepareDrawBindi
             buffer = recorder.ReusableDrawSnapshot(begin, bytes, Recorder::SnapshotUse::Storage, nullptr, generation);
             if (buffer == nullptr) {
                 buffer = std::make_shared<Buffer>(context, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+                static const bool logSnapshots = std::getenv("APS5_LOG_BIG_SNAPSHOTS") != nullptr;
+                static std::atomic<std::uint64_t> logged{0};
+                if (logSnapshots && bytes >= (256u << 10) && logged.fetch_add(1) < 400) std::fprintf(stderr, "[snapshot] 0x%llx+0x%zx index %zu stride %u\n", static_cast<unsigned long long>(begin), bytes, index, static_cast<unsigned>(item.size));
                 std::memcpy(buffer->Bytes().data(), reinterpret_cast<const void*>(begin), bytes);
                 recorder.KeepDrawSnapshot(begin, bytes, generation, registryGeneration, buffer);
             }
