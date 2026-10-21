@@ -161,12 +161,16 @@ bool Driver::preparePacketMemory(const Submission& submission, QueueState& queue
                     if (outcome.path == 1 || outcome.path == 3) {
                         wroteOnGpu = true;
                         drained = false;
-                    } else if (outcome.path == 2 && !Graphics::RegisteredReadableCovers(copy->destination, copy->bytes) && !localDevice->StoresPendingOver(copy->destination, copy->bytes)) {
-                        Graphics::StorageTexture::FlushPending(copy->source, copy->bytes, nullptr, "buffer copy source", Graphics::PublishScope::Whole);
-                        if (auto* recorder = Graphics::Recorder::Active()) recorder->SyncThrough(copy->source, copy->bytes);
-                        ++copiesToHostMemory;
-                        orderedAlready = true;
-                        drained = false;
+                    } else if (outcome.path == 2 && !Graphics::RegisteredReadableCovers(copy->destination, copy->bytes)) {
+                        auto* recorder = Graphics::Recorder::Active();
+                        if (recorder != nullptr && localDevice->StoresPendingOver(copy->destination, copy->bytes)) recorder->SyncThrough(copy->destination, copy->bytes);
+                        if (!localDevice->StoresPendingOver(copy->destination, copy->bytes)) {
+                            Graphics::StorageTexture::FlushPending(copy->source, copy->bytes, nullptr, "buffer copy source", Graphics::PublishScope::Whole);
+                            if (recorder != nullptr) recorder->SyncThrough(copy->source, copy->bytes);
+                            ++copiesToHostMemory;
+                            orderedAlready = true;
+                            drained = false;
+                        }
                     }
                 }
             }
