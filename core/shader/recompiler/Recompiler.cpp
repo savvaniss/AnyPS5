@@ -337,6 +337,9 @@ struct SourceEntry : std::enable_shared_from_this<SourceEntry> {
     // The result memo, most recently used first, at most ResultMemoEntries (under mutex).
     std::list<ResultMemoEntry> memo;
     std::unordered_map<std::uint64_t, std::list<ResultMemoEntry>::iterator> memoIndex;
+    std::size_t memoLookups = 0;
+    std::size_t memoHits = 0;
+    std::size_t memoBypass = 0;
 };
 
 namespace {
@@ -1137,7 +1140,7 @@ bool ResultMemo() {
 constexpr std::size_t ResultMemoEntries = 256;
 
 struct ResultMemoCounters {
-    std::atomic<std::uint64_t> hits{0}, misses{0}, evictions{0}, populateNanoseconds{0};
+    std::atomic<std::uint64_t> hits{0}, misses{0}, evictions{0}, bypassed{0}, populateNanoseconds{0};
     std::atomic<std::int64_t> lastReport{0};
 };
 
@@ -1160,8 +1163,9 @@ void reportResultMemo() {
     const auto hits = counters.hits.exchange(0, std::memory_order_relaxed);
     const auto misses = counters.misses.exchange(0, std::memory_order_relaxed);
     const auto evictions = counters.evictions.exchange(0, std::memory_order_relaxed);
+    const auto bypassed = counters.bypassed.exchange(0, std::memory_order_relaxed);
     const auto populate = counters.populateNanoseconds.exchange(0, std::memory_order_relaxed);
-    std::fprintf(stderr, "[recompile] result memo (10 s): %llu hits, %llu misses (%.1f%% hits), Populate %.1f us per miss / %.1f ms in total, %llu evictions\n", static_cast<unsigned long long>(hits), static_cast<unsigned long long>(misses), hits + misses != 0 ? 100.0 * static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0, misses != 0 ? static_cast<double>(populate) / 1000.0 / static_cast<double>(misses) : 0.0, static_cast<double>(populate) / 1e6, static_cast<unsigned long long>(evictions));
+    std::fprintf(stderr, "[recompile] result memo (10 s): %llu hits, %llu misses (%.1f%% hits), Populate %.1f us per miss / %.1f ms in total, %llu evictions, %llu bypassed\n", static_cast<unsigned long long>(hits), static_cast<unsigned long long>(misses), hits + misses != 0 ? 100.0 * static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0, misses != 0 ? static_cast<double>(populate) / 1000.0 / static_cast<double>(misses) : 0.0, static_cast<double>(populate) / 1e6, static_cast<unsigned long long>(evictions), static_cast<unsigned long long>(bypassed));
 }
 
 // Everything materializeResult reads besides the variant: the snapshot (the descriptor words, the
@@ -1247,14 +1251,36 @@ std::uint64_t snapshotHash(const RecompileRequest& request, const ResourceSnapsh
 // as good). `memoHit` reports the hit.
 std::shared_ptr<const RecompileResult> materializePreparedMemoized(SourceEntry& source, const std::shared_ptr<const CompiledVariant>& variant, const RecompileRequest& request, const ResourceSnapshot& snapshot, bool cacheHit, bool* memoHit) {
     static const bool profile = std::getenv("APS5_PROFILE_DRAW") != nullptr;
+    auto& counters = resultMemoCounters();
+    bool bypass = false;
+    {
+        std::lock_guard lock(source.mutex);
+        if (source.memoBypass != 0) {
+            --source.memoBypass;
+            bypass = true;
+        }
+    }
+    if (bypass) {
+        auto result = std::make_shared<RecompileResult>(materializeResult(*variant, request, snapshot));
+        result->cacheHit = cacheHit;
+        counters.bypassed.fetch_add(1, std::memory_order_relaxed);
+        reportResultMemo();
+        return result;
+    }
     const auto hash = snapshotHash(request, snapshot);
     std::uint64_t index = 0;
-    auto& counters = resultMemoCounters();
     {
         std::lock_guard lock(source.mutex);
         index = (variant->artifact.variantId * 0x9e3779b97f4a7c15ull) ^ hash;
         const auto found = source.memoIndex.find(index);
-        if (found != source.memoIndex.end() && found->second->variantId == variant->artifact.variantId && found->second->hash == hash) {
+        const bool hit = found != source.memoIndex.end() && found->second->variantId == variant->artifact.variantId && found->second->hash == hash;
+        source.memoHits += hit ? 1u : 0u;
+        if (++source.memoLookups == ResultMemoWindow) {
+            if (source.memoHits * ResultMemoHitShare < ResultMemoWindow) source.memoBypass = ResultMemoBypass;
+            source.memoLookups = 0;
+            source.memoHits = 0;
+        }
+        if (hit) {
             source.memo.splice(source.memo.begin(), source.memo, found->second);
             counters.hits.fetch_add(1, std::memory_order_relaxed);
             if (memoHit != nullptr) *memoHit = true;

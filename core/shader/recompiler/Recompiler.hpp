@@ -670,6 +670,10 @@ struct RecompileResult : CompiledShaderArtifact, ShaderInvocation {
     }
 };
 
+inline constexpr std::size_t ResultMemoWindow = 256;
+inline constexpr std::size_t ResultMemoHitShare = 8;
+inline constexpr std::size_t ResultMemoBypass = 4096;
+
 [[nodiscard]] RecompileResult Recompile(const RecompileRequest& request);
 
 struct ResourceCapture;
