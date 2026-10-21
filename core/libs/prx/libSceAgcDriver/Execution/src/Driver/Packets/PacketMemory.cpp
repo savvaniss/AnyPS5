@@ -285,8 +285,9 @@ void Driver::dumpSampleCounters(std::uint64_t address) {
 
 bool Driver::enqueueDmaPacket(std::span<const std::uint32_t> packet, std::uint32_t opcode, std::uint32_t queue, const QueueState& state) {
     static const bool enabled = std::getenv("APS5_PIPELINE_DMA") != nullptr;
-    if (!enabled || opcode != 0x50 || queue != 0 || packet.size() < 7 || !DrawPipeline::Active() || !deferredLabels().labels.empty()) return false;
+    if (opcode != 0x50 || queue != 0 || packet.size() < 7 || !DrawPipeline::Active() || !deferredLabels().labels.empty()) return false;
     const auto source = ((packet[1] >> 29u) & 3u) | ((packet[6] >> 24u) & 4u) | ((packet[6] >> 25u) & 8u);
+    if (!enabled && (source != 2 || Pm4::DmaDestination(packet) != Pm4::DmaSelectGds)) return false;
     constexpr std::size_t immediateLimit = std::size_t{16} << 20u;
     if (source == 2) {
         const auto store = Pm4::ResolveStore(packet, state, immediateLimit);
