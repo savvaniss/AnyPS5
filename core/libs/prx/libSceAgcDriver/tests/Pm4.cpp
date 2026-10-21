@@ -9,6 +9,7 @@
 #include "prx/libSceAgcDriver/Submit/include/Acb.hpp"
 #include "prx/libc/include/FailureReport.hpp"
 #include "prx/libc/include/Shutdown.hpp"
+#include "RdnaDecoder/RdnaInstructionDecoder.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -996,6 +997,39 @@ void testIndexAttributesReadAtExecution() {
     check(std::atomic_ref<std::uint32_t>(done).load() == 1, "INDEX_ATTRIBUTES_INDIRECT did not read its record when the packet ran");
 }
 
+void testReleaseMemDataSelects() {
+    alignas(8) static std::uint64_t target = 0;
+    const auto release = [](std::uint32_t select) { return makePacket(0x49, {0x0030c514, select << 29u, low(&target), high(&target), 1, 0, 0}); };
+    for (std::uint32_t select = 0; select <= 3; ++select) AgcDriver::Pm4::Validate(release(select), 0);
+    expectFailure([&] { AgcDriver::Pm4::Validate(release(4), 0); }, "64-bit system counter (DATA_SEL 4)");
+    expectFailure([&] { AgcDriver::Pm4::Validate(release(5), 0); }, "GDS RELEASE_MEM data");
+    for (const auto select : {6u, 7u}) expectFailure([&] { AgcDriver::Pm4::Validate(release(select), 0); }, "reserved RELEASE_MEM DATA_SEL");
+}
+
+void testGcnReleaseMemSystemCounter() {
+    alignas(8) static std::uint64_t target = 0;
+    const auto release = makePacket(0x49, {0x0030c514, 4u << 29u, low(&target), high(&target), 1, 0, 0});
+    const auto ticks = [](std::chrono::steady_clock::duration elapsed) { return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) * 4u / 5u; };
+    AgcDriver::QueueState state;
+    ShaderRecompiler::SetGcnGuestShaders(true);
+    const auto firstStart = std::chrono::steady_clock::now();
+    execute(state, release);
+    const auto firstEnd = std::chrono::steady_clock::now();
+    const auto first = target;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    const auto secondStart = std::chrono::steady_clock::now();
+    execute(state, release);
+    const auto secondEnd = std::chrono::steady_clock::now();
+    const auto second = target;
+    const auto label = AgcDriver::Pm4::DecodeLabelWrite(release);
+    const auto stores = AgcDriver::Pm4::DecodeStores(release);
+    ShaderRecompiler::SetGcnGuestShaders(false);
+    check(first < 60ull * 800000000ull, "the GCN DATA_SEL 4 counter did not start near zero");
+    check(second - first + 1 >= ticks(secondStart - firstEnd) && second - first <= ticks(secondEnd - firstStart) + 1, "the GCN DATA_SEL 4 counter does not advance at 800 MHz");
+    check(label.has_value() && label->Bytes().size() == 8, "a GCN DATA_SEL 4 RELEASE_MEM did not resolve as an 8-byte label");
+    check(stores.size() == 1 && stores[0].value == AgcDriver::Pm4::PacketStore::Value::RunTime && stores[0].bytes == 8, "a GCN DATA_SEL 4 RELEASE_MEM did not decode as an 8-byte run-time store");
+}
+
 void testSuspendPointWritesQueuedLabels() {
     alignas(8) static std::uint32_t gate = 0, marker = 0;
     gate = 0;
@@ -1691,6 +1725,8 @@ int main(int argc, char** argv) {
         testConditionalValidation();
         testConditionReadSynchronization();
         testEventWrite();
+        testReleaseMemDataSelects();
+        testGcnReleaseMemSystemCounter();
         testAcquireMem();
         testConditionalWrite();
         testConditionalWriteSubmission();
