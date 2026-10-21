@@ -67,7 +67,6 @@ std::shared_ptr<const ShaderRecompiler::SourceHandle> PrepareShaderWithDiagnosti
 }
 
 std::shared_ptr<const ShaderSnapshot> ReadRawShader(std::uint64_t address) {
-    GuestMemory::CheckRange(reinterpret_cast<const void*>(address), sizeof(std::uint32_t), 256);
     static std::mutex cacheMutex;
     static std::list<std::shared_ptr<const ShaderSnapshot>> cache;
     static std::size_t cacheBytes = 0;
@@ -87,6 +86,7 @@ std::shared_ptr<const ShaderSnapshot> ReadRawShader(std::uint64_t address) {
             return cached;
         }
     }
+    GuestMemory::CheckRange(reinterpret_cast<const void*>(address), sizeof(std::uint32_t), 256);
     constexpr std::size_t limit = 1024 * 1024;
     const auto ranges = GuestMemory::CommittedRanges(address, limit);
     std::uint64_t end = address;
