@@ -22,6 +22,7 @@ constexpr std::uint32_t NullSoffset = 0x7du;
 constexpr std::uint32_t MaxSmemByteOffset = 0xfffffu;
 constexpr std::uint32_t LinkedCallSopk = 0x16u;
 constexpr std::uint32_t CodeEndSopp = 0x1fu;
+constexpr std::uint32_t SetRegImmSopk = 0x15u;
 
 template <std::size_t N>
 std::optional<std::uint32_t> mapOpcode(const std::array<std::pair<std::uint16_t, std::uint16_t>, N>& table, std::uint32_t opcode) {
@@ -84,6 +85,7 @@ Encoded encodeScalar(std::span<const std::uint32_t> code, std::uint32_t index, s
         mapped = opcode == LinkedCallSopk ? std::optional<std::uint32_t>(LinkedCallSopk) : mapOpcode(GcnTables::Sopk, opcode);
         if (!mapped) unsupported("SOPK", opcode, programCounter);
         out.words[0] = replaceBits(word, 23, 5, *mapped);
+        literal = opcode == SetRegImmSopk;
     } else {
         opcode = (word >> 23u) & 0x7fu;
         mapped = mapOpcode(GcnTables::Sop2, opcode);
