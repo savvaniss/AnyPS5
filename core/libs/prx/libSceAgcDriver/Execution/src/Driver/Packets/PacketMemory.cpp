@@ -188,6 +188,14 @@ bool Driver::preparePacketMemory(const Submission& submission, QueueState& queue
             }
         }
         if (drained) ++storesDrained;
+        static const std::uint32_t logDrained = std::getenv("APS5_LOG_DRAINED_STORES") != nullptr ? static_cast<std::uint32_t>(std::strtoul(std::getenv("APS5_LOG_DRAINED_STORES"), nullptr, 0)) : 0u;
+        static std::atomic<std::uint32_t> loggedDrained{0};
+        if (drained && logDrained != 0 && loggedDrained.fetch_add(1) < logDrained) {
+            char text[256];
+            int length = std::snprintf(text, sizeof(text), "[drained-store] opcode 0x%02x words %zu:", opcode, packet.size());
+            for (std::size_t i = 1; i < packet.size() && i < 9 && length < 220; ++i) length += std::snprintf(text + length, sizeof(text) - length, " %08x", packet[i]);
+            std::fprintf(stderr, "%s\n", text);
+        }
     }
 
     static const bool drawDrain = std::getenv("APS5_DRAW_DRAIN") != nullptr;
