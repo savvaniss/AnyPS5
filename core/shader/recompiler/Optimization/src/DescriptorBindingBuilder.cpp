@@ -420,7 +420,6 @@ DescriptorBindingPlan DescriptorBindingBuilder::Prepare(const IrBindingLayout& l
                 physical.bufferRead.push_back(buffer.read);
                 physical.bufferExtent.push_back(buffer.maxByteExtent);
                 physical.bufferConstantOffsets.push_back(buffer.constantOffsets);
-                physical.bufferVertexExtent.push_back(buffer.vertexExtent);
                 if (buffer.written || buffer.atomic) ++entry.writtenBuffers;
                 else ++entry.readOnlyBuffers;
             }

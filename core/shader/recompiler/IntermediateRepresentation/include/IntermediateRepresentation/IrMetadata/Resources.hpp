@@ -27,7 +27,6 @@ struct BufferResource {
     bool scalar = false;
     std::uint8_t typedAlignment = 1;
     bool constantOffsets = false;
-    std::uint32_t vertexExtent = 0;
 
     bool operator==(const BufferResource& other) const = default;
 };

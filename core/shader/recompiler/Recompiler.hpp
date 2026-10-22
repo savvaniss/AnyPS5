@@ -431,7 +431,6 @@ struct DescriptorBinding {
     std::vector<bool> bufferRead;
     std::vector<std::uint32_t> bufferExtent;
     std::vector<bool> bufferConstantOffsets;
-    std::vector<std::uint32_t> bufferVertexExtent;
 };
 
 struct ImageTableEntryPoison {

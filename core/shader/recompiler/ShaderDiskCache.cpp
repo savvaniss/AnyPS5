@@ -140,7 +140,7 @@ constexpr std::size_t fieldCount() {
 }
 
 static_assert(fieldCount<ShaderInfo>() == 23, "ShaderInfo changed: update the info encoder");
-static_assert(fieldCount<BufferResource>() == 14, "BufferResource changed: update the info encoder");
+static_assert(fieldCount<BufferResource>() == 13, "BufferResource changed: update the info encoder");
 static_assert(fieldCount<ImageResource>() == 39, "ImageResource changed: update the info encoder");
 static_assert(fieldCount<SamplerResource>() == 8, "SamplerResource changed: update the info encoder");
 static_assert(fieldCount<SampledResourcePair>() == 3, "SampledResourcePair changed: update the info encoder");
@@ -432,7 +432,6 @@ void encodeBinding(Writer& writer, const DescriptorBinding& binding) {
     writer.Flags(binding.bufferRead);
     writer.Values(std::span<const std::uint32_t>(binding.bufferExtent));
     writer.Flags(binding.bufferConstantOffsets);
-    writer.Values(std::span<const std::uint32_t>(binding.bufferVertexExtent));
 }
 
 void decodeBinding(Reader& reader, DescriptorBinding& binding) {
@@ -462,7 +461,6 @@ void decodeBinding(Reader& reader, DescriptorBinding& binding) {
     reader.Flags(binding.bufferRead);
     reader.Values(binding.bufferExtent);
     reader.Flags(binding.bufferConstantOffsets);
-    reader.Values(binding.bufferVertexExtent);
 }
 
 void encodeArtifact(Writer& writer, const CompiledShaderArtifact& result) {
@@ -682,7 +680,6 @@ void encodeShaderInfo(Writer& writer, const ShaderInfo& info) {
         out.Value(buffer.scalar);
         out.Value(buffer.typedAlignment);
         out.Value(buffer.constantOffsets);
-        out.Value(buffer.vertexExtent);
     });
     writer.List(info.images, [](Writer& out, const ImageResource& image) {
         out.Value(image.source);
@@ -773,7 +770,7 @@ void encodeShaderInfo(Writer& writer, const ShaderInfo& info) {
 void decodeShaderInfo(Reader& reader, ShaderInfo& info) {
     reader.Value(info.scratchDwords);
     reader.Value(info.sharedMemoryBytes);
-    reader.List(info.buffers, 32, [](Reader& in, BufferResource& buffer) {
+    reader.List(info.buffers, 28, [](Reader& in, BufferResource& buffer) {
         in.Value(buffer.source);
         in.Value(buffer.firstUsePc);
         in.Value(buffer.maxByteExtent);
@@ -787,7 +784,6 @@ void decodeShaderInfo(Reader& reader, ShaderInfo& info) {
         in.Value(buffer.scalar);
         in.Value(buffer.typedAlignment);
         in.Value(buffer.constantOffsets);
-        in.Value(buffer.vertexExtent);
     });
     reader.List(info.images, 77, [](Reader& in, ImageResource& image) {
         in.Value(image.source);

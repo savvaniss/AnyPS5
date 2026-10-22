@@ -125,7 +125,7 @@ ImageTableReuseCounts ImageTableReuses();
 class ShaderResources {
 public:
     ShaderResources(const Context& context, const ShaderRecompiler::RecompileResult& vertex, const ShaderRecompiler::RecompileResult& fragment, const ColorTarget& target, std::uint64_t indexAddress, std::size_t indexBytes);
-    ShaderResources(const Context& context, std::span<const CompiledShader> shaders, const ColorTarget& target, std::uint32_t colorAttachments, std::uint64_t indexAddress, std::size_t indexBytes, std::span<const GuestMemorySnapshot> snapshots = {}, std::optional<std::uint32_t> maxVertex = std::nullopt);
+    ShaderResources(const Context& context, std::span<const CompiledShader> shaders, const ColorTarget& target, std::uint32_t colorAttachments, std::uint64_t indexAddress, std::size_t indexBytes, std::span<const GuestMemorySnapshot> snapshots = {});
     ShaderResources(const Context& context, const CompiledShader& compute, std::span<const GuestMemorySnapshot> snapshots = {});
     // Two-stage build for dispatches (see build): with `deferred` the constructor runs stage A only,
     // which needs no device lock, and Complete() runs stage B under GuestMemory::GpuMutex; until
@@ -169,9 +169,7 @@ public:
         std::vector<std::uint32_t> words;
     };
     std::shared_ptr<DrawBindings> PrepareDrawBindings(Recorder& recorder, std::span<const MovedBuffer> moved = {}) const;
-    std::optional<std::vector<MovedBuffer>> MovedReadOnlyBuffers(std::span<const CompiledShader> shaders, Recorder& recorder, std::optional<std::uint32_t> maxVertex = std::nullopt) const;
-    bool BindsVertexRange(std::span<const CompiledShader> shaders, std::optional<std::uint32_t> maxVertex) const;
-    static std::uint64_t VertexBoundBytes(const ShaderRecompiler::DescriptorBinding& binding, std::uint32_t element, std::optional<std::uint32_t> maxVertex);
+    std::optional<std::vector<MovedBuffer>> MovedReadOnlyBuffers(std::span<const CompiledShader> shaders, Recorder& recorder) const;
     static std::size_t MaxDrawSnapshotBytes();
     static std::uint64_t ConstantExtentBytes(const ShaderRecompiler::DescriptorBinding& binding, std::uint32_t element, std::uint64_t bytes);
     void WriteBack();
@@ -527,7 +525,6 @@ private:
     // notes (counted in MarkGpuWrites for the [buffers] line).
     std::size_t readOnlyBuffers = 0;
     bool drawBuild = false;
-    std::optional<std::uint32_t> drawMaxVertex;
     std::uint64_t dispatchThreads = 0;
     std::vector<std::shared_ptr<Texture>> textures;
     std::vector<bool> textureFirstLayer;
